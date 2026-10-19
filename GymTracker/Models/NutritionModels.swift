@@ -66,6 +66,9 @@ final class UserSettings {
     var remindersEnabled: Bool = false
     /// Minutes after midnight the reminder fires; 10:00 by default.
     var reminderMinutes: Int = LogReminders.defaultMinutes
+    /// Reads HRV and resting heart rate from Health as a readiness input (HealthService).
+    /// Off until the lifter asks for it, because turning it on is what asks for Health access.
+    var heartReadinessEnabled: Bool = false
 
     init() {
         usesMetric = false

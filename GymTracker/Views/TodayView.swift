@@ -24,9 +24,11 @@ struct TodayView: View {
     /// Today's check-in, persisted so it survives leaving the tab.
     private var todayEntry: ReadinessEntry? { ReadinessEntry.entry(for: .now, in: readinessEntries) }
 
+    /// What the plan is computed with: the lifter's check-in plus this morning's Health reading.
     private var readiness: Readiness? {
-        guard let todayEntry, todayEntry.isLogged else { return nil }
-        return todayEntry.readiness
+        guard let todayEntry else { return nil }
+        let readiness = todayEntry.readiness
+        return readiness.hasAnyInput ? readiness : nil
     }
 
     /// The entry to write into, created on first input.
@@ -189,13 +191,59 @@ struct TodayView: View {
                         .font(.subheadline)
                 }
             }
+            if settings?.heartReadinessEnabled == true {
+                heartRow
+            }
         } header: {
             Text(logged ? "Readiness · logged for today" : "Readiness (optional)")
         } footer: {
             if !logged {
-                Text("Under 6 h of sleep, or a very sore working muscle, makes today 5% lighter.")
+                Text(settings?.heartReadinessEnabled == true
+                     ? "Under 6 h of sleep, a very sore working muscle, or a heart reading clearly below your usual, makes today 5% lighter."
+                     : "Under 6 h of sleep, or a very sore working muscle, makes today 5% lighter.")
             }
         }
+    }
+
+    /// This morning's HRV and resting heart rate from Health, and why they did or did not
+    /// change today's loads.
+    @ViewBuilder private var heartRow: some View {
+        if let heart = todayEntry?.heart {
+            VStack(alignment: .leading, spacing: 3) {
+                Label(heartReading(heart), systemImage: heart.isLow ? "heart.slash" : "heart")
+                    .font(.body.monospacedDigit())
+                    .foregroundStyle(heart.isLow ? .orange : .primary)
+                Text(heartExplanation(heart))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+        } else {
+            Label("No heart reading in Health yet today.", systemImage: "heart")
+                .font(.subheadline).foregroundStyle(.secondary)
+        }
+    }
+
+    private func heartReading(_ heart: HeartReadiness) -> String {
+        var parts: [String] = []
+        if let hrv = heart.hrvMs { parts.append("HRV \(Units.number(hrv, maxFraction: 0)) ms") }
+        if let rhr = heart.restingHeartRate { parts.append("Resting HR \(Units.number(rhr, maxFraction: 0))") }
+        return parts.joined(separator: " · ")
+    }
+
+    private func heartExplanation(_ heart: HeartReadiness) -> String {
+        func range(_ b: HeartBaseline, _ unit: String) -> String {
+            "\(Units.number(b.mean, maxFraction: 0)) ± \(Units.number(b.standardDeviation, maxFraction: 0))\(unit) over \(b.days) days"
+        }
+        if heart.hrvIsLow, let b = heart.hrvBaseline {
+            return "HRV is more than one SD below your usual (\(range(b, " ms"))), so today is 5% lighter."
+        }
+        if heart.restingHeartRateIsHigh, let b = heart.restingHeartRateBaseline {
+            return "Resting HR is more than one SD above your usual (\(range(b, ""))), so today is 5% lighter."
+        }
+        if heart.hrvBaseline == nil && heart.restingHeartRateBaseline == nil {
+            return "Within range once \(HeartRateRule.minimumBaselineDays) days of readings have built a baseline."
+        }
+        return "Within your usual range. Loads unchanged."
     }
 
     private func readinessSummary(_ entry: ReadinessEntry) -> String {

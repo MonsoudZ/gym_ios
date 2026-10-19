@@ -11,6 +11,15 @@ final class WorkoutSession {
     var programDayID: UUID?
     var sleepHours: Double?
     var sorenessByMuscle: [String: Int]
+    /// The morning's Health reading as the day's check-in held it (see ReadinessEntry).
+    var hrvMs: Double?
+    var restingHeartRate: Double?
+    var hrvBaselineMean: Double?
+    var hrvBaselineSD: Double?
+    var hrvBaselineDays: Int?
+    var restingHeartRateBaselineMean: Double?
+    var restingHeartRateBaselineSD: Double?
+    var restingHeartRateBaselineDays: Int?
     var isCompleted: Bool
     @Relationship(deleteRule: .cascade, inverse: \SetEntry.session) var sets: [SetEntry] = []
 
@@ -30,6 +39,26 @@ final class WorkoutSession {
             if let muscle = Muscle(rawValue: key) { soreness[muscle] = value }
         }
         self.init(date: date, templateDayName: templateDayName, sleepHours: entry?.sleepHours, soreness: soreness)
+        hrvMs = entry?.hrvMs
+        restingHeartRate = entry?.restingHeartRate
+        hrvBaselineMean = entry?.hrvBaselineMean
+        hrvBaselineSD = entry?.hrvBaselineSD
+        hrvBaselineDays = entry?.hrvBaselineDays
+        restingHeartRateBaselineMean = entry?.restingHeartRateBaselineMean
+        restingHeartRateBaselineSD = entry?.restingHeartRateBaselineSD
+        restingHeartRateBaselineDays = entry?.restingHeartRateBaselineDays
+    }
+
+    var heart: HeartReadiness? {
+        guard hrvMs != nil || restingHeartRate != nil else { return nil }
+        func baseline(_ mean: Double?, _ sd: Double?, _ days: Int?) -> HeartBaseline? {
+            guard let mean, let sd, let days else { return nil }
+            return HeartBaseline(mean: mean, standardDeviation: sd, days: days)
+        }
+        return HeartReadiness(hrvMs: hrvMs, restingHeartRate: restingHeartRate,
+                              hrvBaseline: baseline(hrvBaselineMean, hrvBaselineSD, hrvBaselineDays),
+                              restingHeartRateBaseline: baseline(restingHeartRateBaselineMean, restingHeartRateBaselineSD,
+                                                                 restingHeartRateBaselineDays))
     }
 
     var readiness: Readiness {
@@ -37,7 +66,7 @@ final class WorkoutSession {
         for (key, value) in sorenessByMuscle {
             if let muscle = Muscle(rawValue: key) { soreness[muscle] = value }
         }
-        return Readiness(sleepHours: sleepHours, soreness: soreness)
+        return Readiness(sleepHours: sleepHours, soreness: soreness, heart: heart)
     }
 
     /// Exercises in this session in the order they were planned.

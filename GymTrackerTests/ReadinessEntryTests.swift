@@ -39,4 +39,40 @@ final class ReadinessEntryTests: XCTestCase {
         XCTAssertNil(blank.sleepHours)
         XCTAssertFalse(blank.readiness.hasAnyInput)
     }
+
+    private let lowHeart = HeartReadiness(hrvMs: 40, restingHeartRate: 64,
+                                          hrvBaseline: HeartBaseline(mean: 50, standardDeviation: 2.16, days: 7),
+                                          restingHeartRateBaseline: HeartBaseline(mean: 59, standardDeviation: 1.41, days: 7))
+
+    @MainActor
+    func testHeartReadingRoundTripsAndIsNotACheckIn() {
+        let entry = ReadinessEntry(date: .now)
+        entry.heart = lowHeart
+        XCTAssertEqual(entry.heart, lowHeart)
+        XCTAssertFalse(entry.isLogged, "a Health reading alone is not something the lifter logged")
+        XCTAssertTrue(entry.readiness.hasAnyInput)
+        XCTAssertTrue(entry.readiness.isLow(for: [MuscleWeight(muscle: .chest, weight: 1)]))
+        entry.heart = nil
+        XCTAssertNil(entry.heart)
+        XCTAssertFalse(entry.readiness.hasAnyInput)
+    }
+
+    @MainActor
+    func testHeartReadingWithoutABaselineRoundTrips() {
+        let entry = ReadinessEntry(date: .now)
+        entry.heart = HeartReadiness(hrvMs: 45, restingHeartRate: nil)
+        XCTAssertEqual(entry.heart?.hrvMs, 45)
+        XCTAssertNil(entry.heart?.restingHeartRate)
+        XCTAssertNil(entry.heart?.hrvBaseline)
+        XCTAssertFalse(entry.readiness.isLow(for: [MuscleWeight(muscle: .chest, weight: 1)]))
+    }
+
+    @MainActor
+    func testSessionCopiesTheDaysHeartReading() {
+        let entry = ReadinessEntry(date: .now, sleepHours: 8)
+        entry.heart = lowHeart
+        let session = WorkoutSession(templateDayName: "Upper A", readiness: entry)
+        XCTAssertEqual(session.heart, lowHeart)
+        XCTAssertTrue(session.readiness.isLow(for: [MuscleWeight(muscle: .chest, weight: 1)]))
+    }
 }

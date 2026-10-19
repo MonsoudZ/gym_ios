@@ -34,6 +34,8 @@ private struct SettingsForm: View {
     @Environment(\.openURL) private var openURL
     /// False after the lifter has refused notifications in iOS Settings.
     @State private var notificationsAllowed = true
+    /// False on devices without Health, where the heart-rate toggle cannot stay on.
+    @State private var healthAvailable = HealthService.isAvailable
 
     private var reminderTime: Binding<Date> {
         Binding(get: { Calendar.current.date(byAdding: .minute, value: settings.reminderMinutes, to: Calendar.current.startOfDay(for: .now))! },
@@ -177,6 +179,28 @@ private struct SettingsForm: View {
                 }
             }
             .onChange(of: settings.reminderMinutes) { _, _ in LogReminders.refresh(context: context) }
+
+            Section {
+                Toggle("Heart rate from Health", isOn: $settings.heartReadinessEnabled)
+                    .disabled(!healthAvailable)
+                if !healthAvailable {
+                    Text("Health is not available on this device.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Readiness")
+            } footer: {
+                Text("Reads heart rate variability and resting heart rate. A morning clearly below your own 7-day baseline makes today 5% lighter, the same as short sleep or soreness. It never makes a day heavier.")
+            }
+            .onChange(of: settings.heartReadinessEnabled) { _, on in
+                Task {
+                    if on, !(await HealthService.requestAuthorization()) {
+                        healthAvailable = false
+                        settings.heartReadinessEnabled = false
+                    }
+                    await HealthService.refresh(context: context)
+                }
+            }
 
             Section("Data") {
                 Button("Load demo data (8 weeks)") {
