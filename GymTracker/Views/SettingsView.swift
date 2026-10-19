@@ -1,0 +1,99 @@
+import SwiftUI
+import SwiftData
+
+struct SettingsView: View {
+    @Environment(\.modelContext) private var context
+    @Query private var settingsList: [UserSettings]
+    @Query(sort: \Exercise.name) private var exercises: [Exercise]
+    @State private var confirmReset = false
+
+    var body: some View {
+        NavigationStack {
+            if let settings = settingsList.first {
+                SettingsForm(settings: settings, exercises: exercises, confirmReset: $confirmReset)
+                    .navigationTitle("Settings")
+            } else {
+                ProgressView()
+            }
+        }
+    }
+}
+
+private struct SettingsForm: View {
+    @Bindable var settings: UserSettings
+    var exercises: [Exercise]
+    @Binding var confirmReset: Bool
+    @Environment(\.modelContext) private var context
+
+    var body: some View {
+        Form {
+            Section("Goal") {
+                Picker("Goal", selection: $settings.goal) {
+                    ForEach(Goal.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .onChange(of: settings.goal) { _, goal in
+                    settings.goalRatePercentPerWeek = goal.defaultRatePercentPerWeek
+                    settings.cumulativeAdjustmentKcal = 0
+                }
+                if settings.goal != .maintain {
+                    let range = settings.goal.rateRange
+                    VStack(alignment: .leading) {
+                        Text("Rate: \(Units.percent(settings.goalRatePercentPerWeek)) of bodyweight per week")
+                        Slider(value: $settings.goalRatePercentPerWeek, in: range, step: 0.05)
+                        Text(settings.goal == .cut
+                             ? "Slower loss keeps more muscle (Garthe 2011). 0.5% is the default."
+                             : "Faster than 0.5%/week is mostly fat in trained lifters.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                LabeledContent("Protein", value: "\(Units.number(settings.proteinPerKg)) g/kg")
+            }
+
+            Section("Program") {
+                Picker("Template", selection: $settings.templateName) {
+                    ForEach(ProgramTemplates.all, id: \.name) { Text($0.name).tag($0.name) }
+                }
+                Text(ProgramTemplates.named(settings.templateName).summary)
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Use kilograms", isOn: $settings.usesMetric)
+            } header: {
+                Text("Units")
+            } footer: {
+                Text("Everything is stored in kilograms. This only changes what you see.")
+            }
+
+            Section {
+                Stepper("Height: \(Units.number(settings.heightCm, maxFraction: 0)) cm", value: $settings.heightCm, in: 120...230, step: 1)
+                Stepper("Age: \(settings.ageYears)", value: $settings.ageYears, in: 14...100)
+                Picker("Sex (for the formula)", selection: $settings.isMale) {
+                    Text("Male").tag(true)
+                    Text("Female").tag(false)
+                }
+                Picker("Activity outside training", selection: $settings.activityFactor) {
+                    Text("Sedentary").tag(1.3)
+                    Text("Light").tag(1.5)
+                    Text("Moderate").tag(1.7)
+                    Text("High").tag(1.9)
+                }
+                Stepper("Starting weight: \(Units.number(settings.assumedWeightKg)) kg", value: $settings.assumedWeightKg, in: 35...250, step: 0.5)
+            } header: {
+                Text("Profile")
+            } footer: {
+                Text("Used only for the provisional calorie estimate before the app has measured your expenditure.")
+            }
+
+            Section("Data") {
+                Button("Load demo data (8 weeks)") {
+                    DemoData.load(context: context, exercises: exercises, settings: settings)
+                }
+                Button("Reset everything", role: .destructive) { confirmReset = true }
+            }
+        }
+        .confirmationDialog("Delete all workouts, weights and food?", isPresented: $confirmReset, titleVisibility: .visible) {
+            Button("Delete everything", role: .destructive) { Seeder.resetAll(context: context) }
+        }
+    }
+}
