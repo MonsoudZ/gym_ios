@@ -58,6 +58,9 @@ final class UserSettings {
     var cumulativeAdjustmentKcal: Double
     var lastAdjustmentDate: Date?
     var createdAt: Date
+    /// Set when the first-run questions have been answered or skipped. Existing installs get
+    /// `true` through migration, so only a fresh install sees onboarding.
+    var hasCompletedOnboarding: Bool = true
 
     init() {
         usesMetric = false
@@ -75,6 +78,7 @@ final class UserSettings {
         cumulativeAdjustmentKcal = 0
         lastAdjustmentDate = nil
         createdAt = .now
+        hasCompletedOnboarding = false
     }
 
     var proteinPerKg: Double { proteinPerKgOverride ?? goal.proteinPerKg }

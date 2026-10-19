@@ -226,6 +226,14 @@ final class PlanServiceTests: XCTestCase {
         XCTAssertEqual(stored.map(\.kcal), [-100, 100])
     }
 
+    @MainActor
+    func testFreshSettingsNeedOnboardingAndSeededOnesDoToo() throws {
+        let context = try makeContext()
+        Seeder.prepare(context: context)
+        let settings = try XCTUnwrap(context.fetch(FetchDescriptor<UserSettings>()).first)
+        XCTAssertFalse(settings.hasCompletedOnboarding, "a seeded install asks the first-run questions once")
+    }
+
     // MARK: Migration
 
     @MainActor

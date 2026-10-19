@@ -20,10 +20,11 @@ enum DemoData {
         let today = cal.startOfDay(for: .now)
         let start = cal.date(byAdding: .day, value: -56, to: today)!
 
+        // History is written on the Upper / Lower rotation; the user's chosen split stays active.
         var dayIDsByName: [String: UUID] = [:]
         if let programs = try? context.fetch(FetchDescriptor<Program>()),
            let upperLower = programs.first(where: { $0.name == BuiltInPrograms.upperLower.name }) {
-            settings.activeProgramID = upperLower.id
+            if settings.activeProgramID == nil { settings.activeProgramID = upperLower.id }
             dayIDsByName = Dictionary(upperLower.days.map { ($0.name, $0.id) }, uniquingKeysWith: { first, _ in first })
         }
         settings.goal = .cut

@@ -180,6 +180,11 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
 
 ## 4. What the app shows (readability)
 
+**First launch**
+
+- One sheet: units, goal (with the rate and protein each implies), starting split, and an
+  optional 8-week demo history. Everything on it is also in Settings. Existing installs skip it.
+
 **Today screen**
 
 - One line: today's session name and the single most important change
@@ -247,8 +252,8 @@ correction fixes everything downstream.
 
 ## 7. Open questions
 
-1. Default units: kg or lb?
-2. Starting split and goal (decides the first template and the macro preset).
+1. ~~Default units: kg or lb?~~ Pounds by default; asked on first launch.
+2. ~~Starting split and goal.~~ Asked on first launch; Upper / Lower and Maintain by default.
 3. Any existing data to import (Strong, Hevy, MacroFactor export)?
 4. Is a food database needed in v1, or are saved meals plus manual entry enough to start?
 
