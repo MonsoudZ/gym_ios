@@ -9,17 +9,18 @@ nonisolated struct ExerciseSpec: Hashable, Sendable {
     var increment: Double
 }
 
-nonisolated struct TemplateDay: Hashable, Sendable {
+/// One day of a built-in split, by library exercise name. Only the seeding path reads these;
+/// once seeded, a `Program` refers to its exercises by id.
+nonisolated struct BuiltInDay: Hashable, Sendable {
     var name: String
     var exerciseNames: [String]
 
-    var exercises: [ExerciseSpec] { exerciseNames.compactMap(ExerciseLibrary.spec) }
+    var specs: [ExerciseSpec] { exerciseNames.compactMap(ExerciseLibrary.spec) }
 }
 
-nonisolated struct ProgramTemplate: Hashable, Sendable {
+nonisolated struct BuiltInProgram: Hashable, Sendable {
     var name: String
-    var summary: String
-    var days: [TemplateDay]
+    var days: [BuiltInDay]
 }
 
 nonisolated enum ExerciseLibrary {
@@ -71,38 +72,32 @@ nonisolated enum ExerciseLibrary {
     }
 }
 
-nonisolated enum ProgramTemplates {
-    static let upperLower = ProgramTemplate(
+/// The splits seeded as editable programs on first launch.
+nonisolated enum BuiltInPrograms {
+    static let upperLower = BuiltInProgram(
         name: "Upper / Lower",
-        summary: "4 days. Every muscle twice a week.",
         days: [
-            TemplateDay(name: "Upper A", exerciseNames: ["Barbell Bench Press", "Barbell Row", "Overhead Press", "Lat Pulldown", "Barbell Curl", "Triceps Pushdown"]),
-            TemplateDay(name: "Lower A", exerciseNames: ["Back Squat", "Romanian Deadlift", "Leg Press", "Leg Curl", "Standing Calf Raise"]),
-            TemplateDay(name: "Upper B", exerciseNames: ["Incline Dumbbell Press", "Seated Cable Row", "Dumbbell Shoulder Press", "Lat Pulldown", "Lateral Raise", "Face Pull", "Barbell Curl"]),
-            TemplateDay(name: "Lower B", exerciseNames: ["Deadlift", "Leg Press", "Hip Thrust", "Leg Extension", "Leg Curl", "Standing Calf Raise"]),
+            BuiltInDay(name: "Upper A", exerciseNames: ["Barbell Bench Press", "Barbell Row", "Overhead Press", "Lat Pulldown", "Barbell Curl", "Triceps Pushdown"]),
+            BuiltInDay(name: "Lower A", exerciseNames: ["Back Squat", "Romanian Deadlift", "Leg Press", "Leg Curl", "Standing Calf Raise"]),
+            BuiltInDay(name: "Upper B", exerciseNames: ["Incline Dumbbell Press", "Seated Cable Row", "Dumbbell Shoulder Press", "Lat Pulldown", "Lateral Raise", "Face Pull", "Barbell Curl"]),
+            BuiltInDay(name: "Lower B", exerciseNames: ["Deadlift", "Leg Press", "Hip Thrust", "Leg Extension", "Leg Curl", "Standing Calf Raise"]),
         ])
 
-    static let pushPullLegs = ProgramTemplate(
+    static let pushPullLegs = BuiltInProgram(
         name: "Push / Pull / Legs",
-        summary: "6 days, or 3 days rotating.",
         days: [
-            TemplateDay(name: "Push", exerciseNames: ["Barbell Bench Press", "Overhead Press", "Incline Dumbbell Press", "Lateral Raise", "Triceps Pushdown"]),
-            TemplateDay(name: "Pull", exerciseNames: ["Barbell Row", "Lat Pulldown", "Seated Cable Row", "Face Pull", "Barbell Curl"]),
-            TemplateDay(name: "Legs", exerciseNames: ["Back Squat", "Romanian Deadlift", "Leg Press", "Leg Curl", "Standing Calf Raise", "Cable Crunch"]),
+            BuiltInDay(name: "Push", exerciseNames: ["Barbell Bench Press", "Overhead Press", "Incline Dumbbell Press", "Lateral Raise", "Triceps Pushdown"]),
+            BuiltInDay(name: "Pull", exerciseNames: ["Barbell Row", "Lat Pulldown", "Seated Cable Row", "Face Pull", "Barbell Curl"]),
+            BuiltInDay(name: "Legs", exerciseNames: ["Back Squat", "Romanian Deadlift", "Leg Press", "Leg Curl", "Standing Calf Raise", "Cable Crunch"]),
         ])
 
-    static let fullBody = ProgramTemplate(
+    static let fullBody = BuiltInProgram(
         name: "Full Body",
-        summary: "3 days. Compound-led.",
         days: [
-            TemplateDay(name: "Full Body A", exerciseNames: ["Back Squat", "Barbell Bench Press", "Barbell Row", "Lateral Raise", "Barbell Curl"]),
-            TemplateDay(name: "Full Body B", exerciseNames: ["Deadlift", "Overhead Press", "Lat Pulldown", "Leg Press", "Triceps Pushdown"]),
-            TemplateDay(name: "Full Body C", exerciseNames: ["Hip Thrust", "Incline Dumbbell Press", "Seated Cable Row", "Leg Curl", "Face Pull"]),
+            BuiltInDay(name: "Full Body A", exerciseNames: ["Back Squat", "Barbell Bench Press", "Barbell Row", "Lateral Raise", "Barbell Curl"]),
+            BuiltInDay(name: "Full Body B", exerciseNames: ["Deadlift", "Overhead Press", "Lat Pulldown", "Leg Press", "Triceps Pushdown"]),
+            BuiltInDay(name: "Full Body C", exerciseNames: ["Hip Thrust", "Incline Dumbbell Press", "Seated Cable Row", "Leg Curl", "Face Pull"]),
         ])
 
-    static let all: [ProgramTemplate] = [upperLower, pushPullLegs, fullBody]
-
-    static func named(_ name: String) -> ProgramTemplate {
-        all.first { $0.name == name } ?? upperLower
-    }
+    static let all: [BuiltInProgram] = [upperLower, pushPullLegs, fullBody]
 }

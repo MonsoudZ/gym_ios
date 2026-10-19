@@ -9,10 +9,11 @@ struct TodayView: View {
     @Query private var intake: [IntakeEntry]
     @Query(sort: \BodyweightEntry.date) private var weights: [BodyweightEntry]
     @Query(sort: \Program.createdAt) private var programs: [Program]
+    @Query private var readinessEntries: [ReadinessEntry]
 
-    @State private var sleepText = ""
-    @State private var soreMuscles: Set<Muscle> = []
     @State private var activeSession: WorkoutSession?
+    /// Keeps the readiness inputs open while the lifter is typing; reset whenever the tab is shown.
+    @State private var editingReadiness = false
 
     private var settings: UserSettings? { settingsList.first }
     private var completed: [WorkoutSession] { sessions.filter(\.isCompleted) }
@@ -20,28 +21,58 @@ struct TodayView: View {
 
     private var activeProgram: Program? { settings?.activeProgram(in: programs) }
 
-    private var day: TemplateDay? {
-        guard let activeProgram else { return nil }
-        return PlanService.nextDay(template: activeProgram.asTemplate, completedSessions: completed)
-    }
+    /// Today's check-in, persisted so it survives leaving the tab.
+    private var todayEntry: ReadinessEntry? { ReadinessEntry.entry(for: .now, in: readinessEntries) }
 
     private var readiness: Readiness? {
-        let sleep = Double(sleepText.replacingOccurrences(of: ",", with: "."))
-        let soreness = Dictionary(uniqueKeysWithValues: soreMuscles.map { ($0, Readiness.sorenessThreshold) })
-        let value = Readiness(sleepHours: sleep, soreness: soreness)
-        return value.hasAnyInput ? value : nil
+        guard let todayEntry, todayEntry.isLogged else { return nil }
+        return todayEntry.readiness
     }
 
-    private var plan: [PlannedExercise] {
-        guard let day, let settings else { return [] }
-        return PlanService.plan(day: day, exercises: exercises, completedSessions: completed, readiness: readiness, metric: settings.usesMetric)
+    /// The entry to write into, created on first input.
+    private func entryForEditing() -> ReadinessEntry {
+        if let todayEntry { return todayEntry }
+        let entry = ReadinessEntry(date: .now)
+        context.insert(entry)
+        return entry
     }
 
-    private var headline: PlannedExercise? {
-        plan.first { $0.prescription.stallAction != nil } ?? plan.first { $0.prescription.isNotable } ?? plan.first
+    private var sleepHours: Binding<Double?> {
+        Binding(get: { todayEntry?.sleepHours },
+                set: { editingReadiness = true; entryForEditing().sleepHours = $0; context.saveOrLog() })
+    }
+
+    private func isSore(_ muscle: Muscle) -> Binding<Bool> {
+        Binding(get: { todayEntry?.soreMuscles.contains(muscle) ?? false },
+                set: { on in
+                    editingReadiness = true
+                    let entry = entryForEditing()
+                    var sore = entry.soreMuscles
+                    if on { sore.insert(muscle) } else { sore.remove(muscle) }
+                    entry.soreMuscles = sore
+                    context.saveOrLog()
+                })
+    }
+
+    /// Today's day and its plan, computed once per render and handed to every section.
+    private struct Today {
+        var day: ProgramDay
+        var plan: [PlannedExercise]
+        var headline: PlannedExercise? {
+            plan.first { $0.prescription.stallAction != nil } ?? plan.first { $0.prescription.isNotable } ?? plan.first
+        }
+    }
+
+    private func makeToday() -> Today? {
+        guard let activeProgram, let settings,
+              let day = PlanService.nextDay(in: activeProgram, completedSessions: completed) else { return nil }
+        let plan = PlanService.plan(day: day, exercises: exercises, completedSessions: completed,
+                                    readiness: readiness, metric: settings.usesMetric)
+        return Today(day: day, plan: plan)
     }
 
     var body: some View {
+        let today = makeToday()
         NavigationStack {
             List {
                 if let inProgress {
@@ -50,16 +81,19 @@ struct TodayView: View {
                             Label("Continue \(inProgress.templateDayName)", systemImage: "play.fill")
                         }
                     }
-                } else if day == nil {
-                    Section {
-                        Text("Your program has no days yet.").font(.headline)
-                        Text("Add a day and some exercises, and today's plan will appear here.")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
+                } else if let today {
+                    headlineSection(today)
+                    readinessSection(today)
+                    sessionSection(today)
                 } else {
-                    headlineSection
-                    readinessSection
-                    sessionSection
+                    Section {
+                        EmptyState("No days yet", systemImage: "calendar.badge.plus",
+                                   description: "Add a day and some exercises, and today's plan will appear here.") {
+                            if let activeProgram {
+                                NavigationLink("Add a day", value: activeProgram)
+                            }
+                        }
+                    }
                 }
                 nutritionSection
             }
@@ -68,30 +102,43 @@ struct TodayView: View {
                 if let activeProgram {
                     ToolbarItem(placement: .primaryAction) {
                         NavigationLink(value: activeProgram) {
-                            Label(activeProgram.name, systemImage: "list.bullet.rectangle")
+                            Image(systemName: "list.bullet.rectangle")
                         }
+                        .accessibilityLabel("Edit program: \(activeProgram.name)")
                     }
                 }
             }
             .navigationDestination(for: Program.self) { ProgramEditorView(program: $0) }
             .navigationDestination(for: WorkoutSession.self) { WorkoutView(session: $0) }
             .navigationDestination(item: $activeSession) { WorkoutView(session: $0) }
+            .onAppear { editingReadiness = false }
         }
     }
 
-    @ViewBuilder private var headlineSection: some View {
-        if let day, let headline, let settings {
+    @ViewBuilder private func headlineSection(_ today: Today) -> some View {
+        if let headline = today.headline, let settings {
             Section {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(day.name).font(.title2.bold())
+                    Text(today.day.name).font(.title2.bold())
                     Text(headlineText(headline, metric: settings.usesMetric))
-                        .font(.headline)
+                        .font(.headline.monospacedDigit())
+                    if let action = headline.prescription.stallAction {
+                        StallBadge(action: action, streak: headline.prescription.stallStreak)
+                    }
                     Text(headline.prescription.reason)
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 4)
+                NavigationLink {
+                    ExerciseProgressView(exercise: headline.exercise)
+                } label: {
+                    Label(headline.prescription.stallAction == nil
+                          ? "\(headline.exercise.name) history"
+                          : "Why: see \(headline.exercise.name) history",
+                          systemImage: "chart.line.uptrend.xyaxis")
+                }
                 Button {
-                    startWorkout()
+                    startWorkout(today)
                 } label: {
                     Label("Start workout", systemImage: "figure.strengthtraining.traditional")
                         .frame(maxWidth: .infinity)
@@ -103,51 +150,85 @@ struct TodayView: View {
         }
     }
 
-    private var readinessSection: some View {
-        Section("Readiness (optional)") {
-            HStack {
-                Text("Sleep last night")
-                Spacer()
-                TextField("hours", text: $sleepText)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 80)
-                Text("h").foregroundStyle(.secondary)
-            }
-            if day != nil {
-                let muscles = Set(plan.flatMap { $0.exercise.muscles.filter { $0.weight >= 0.5 }.map(\.muscle) })
+    private func readinessSection(_ today: Today) -> some View {
+        let logged = todayEntry?.isLogged == true
+        return Section {
+            if logged, !editingReadiness, let todayEntry {
+                HStack {
+                    Label(readinessSummary(todayEntry), systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .symbolRenderingMode(.multicolor)
+                    Spacer()
+                    Button("Edit") { editingReadiness = true }
+                        .font(.subheadline)
+                }
+                .accessibilityElement(children: .combine)
+            } else {
+                HStack {
+                    Text("Sleep last night")
+                    Spacer()
+                    TextField("e.g. 7.5", value: sleepHours, format: .number.precision(.fractionLength(0...1)))
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .font(.body.monospacedDigit())
+                        .frame(width: 80)
+                        .accessibilityLabel("Sleep last night in hours")
+                    Text("h").foregroundStyle(.secondary)
+                }
+                let muscles = Set(today.plan.flatMap { $0.exercise.muscles.filter { $0.weight >= 0.5 }.map(\.muscle) })
                     .sorted { $0.displayName < $1.displayName }
-                DisclosureGroup("Very sore in\(soreMuscles.isEmpty ? "" : " (\(soreMuscles.count))")") {
+                let soreCount = todayEntry?.soreMuscles.count ?? 0
+                DisclosureGroup("Very sore in\(soreCount == 0 ? "" : " (\(soreCount))")") {
                     ForEach(muscles) { muscle in
-                        Toggle(muscle.displayName, isOn: Binding(
-                            get: { soreMuscles.contains(muscle) },
-                            set: { on in if on { soreMuscles.insert(muscle) } else { soreMuscles.remove(muscle) } }
-                        ))
+                        Toggle(muscle.displayName, isOn: isSore(muscle))
+                            .accessibilityHint("Marks \(muscle.displayName.lowercased()) as very sore today, which makes lifts that use it 5% lighter")
                     }
                 }
+                if logged {
+                    Button("Done") { editingReadiness = false }
+                        .font(.subheadline)
+                }
+            }
+        } header: {
+            Text(logged ? "Readiness · logged for today" : "Readiness (optional)")
+        } footer: {
+            if !logged {
+                Text("Under 6 h of sleep, or a very sore working muscle, makes today 5% lighter.")
             }
         }
     }
 
-    @ViewBuilder private var sessionSection: some View {
+    private func readinessSummary(_ entry: ReadinessEntry) -> String {
+        var parts: [String] = []
+        if let sleep = entry.sleepHours { parts.append("Slept \(Units.number(sleep)) h") }
+        let sore = entry.soreMuscles.map(\.displayName).sorted()
+        if !sore.isEmpty { parts.append("Sore: \(sore.joined(separator: ", "))") }
+        return parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder private func sessionSection(_ today: Today) -> some View {
         if let settings {
             Section("Plan") {
-                ForEach(plan) { item in
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack {
-                            Text(item.exercise.name).font(.body.weight(.medium))
-                            Spacer()
-                            if let action = item.prescription.stallAction {
-                                Text(action.label).font(.caption).padding(.horizontal, 6).padding(.vertical, 2)
-                                    .background(.orange.opacity(0.2), in: Capsule())
-                            } else if item.prescription.lastVerdict == .progressed {
-                                Image(systemName: "arrow.up.circle.fill").foregroundStyle(.green)
+                ForEach(today.plan) { item in
+                    NavigationLink {
+                        ExerciseProgressView(exercise: item.exercise)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text(item.exercise.name).font(.body.weight(.medium))
+                                Spacer()
+                                if let action = item.prescription.stallAction {
+                                    StallBadge(action: action, streak: item.prescription.stallStreak)
+                                } else if item.prescription.lastVerdict == .progressed {
+                                    VerdictBadge(verdict: .progressed)
+                                        .accessibilityLabel("Progressed last session")
+                                }
                             }
+                            Text(prescriptionLine(item.prescription, metric: settings.usesMetric))
+                                .font(.subheadline.monospacedDigit())
+                            Text(item.prescription.reason)
+                                .font(.caption).foregroundStyle(.secondary)
                         }
-                        Text(prescriptionLine(item.prescription, metric: settings.usesMetric))
-                            .font(.subheadline)
-                        Text(item.prescription.reason)
-                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -161,7 +242,7 @@ struct TodayView: View {
                 MacroProgressRow(label: "Calories", eaten: snap.eatenToday.kcal, target: snap.targetKcal, unit: "kcal")
                 MacroProgressRow(label: "Protein", eaten: snap.eatenToday.protein, target: snap.macros.protein, unit: "g")
                 if snap.isProvisional {
-                    Text("Target is provisional until two weeks of weight and intake are logged.")
+                    Text(NutritionSnapshot.provisionalNote)
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -180,12 +261,11 @@ struct TodayView: View {
         return "\(Units.weight(p.weight, metric: metric)) · \(p.setCount) × \(p.repRangeLow)–\(p.repRangeHigh) · RPE ≤ \(Units.number(9))"
     }
 
-    private func startWorkout() {
-        guard let day else { return }
-        let soreness = Dictionary(uniqueKeysWithValues: soreMuscles.map { ($0, Readiness.sorenessThreshold) })
-        let session = WorkoutSession(templateDayName: day.name, sleepHours: Double(sleepText), soreness: soreness)
+    private func startWorkout(_ today: Today) {
+        let session = WorkoutSession(templateDayName: today.day.name, readiness: todayEntry)
+        session.programDayID = today.day.id
         context.insert(session)
-        for (order, item) in plan.enumerated() {
+        for (order, item) in today.plan.enumerated() {
             for number in 0..<item.prescription.setCount {
                 let set = SetEntry(exerciseOrder: order, setNumber: number, weight: item.prescription.weight)
                 set.exercise = item.exercise
@@ -193,8 +273,27 @@ struct TodayView: View {
                 context.insert(set)
             }
         }
-        try? context.save()
+        context.saveOrLog()
         activeSession = session
+    }
+}
+
+/// "Deload · stalled 3 sessions": what the engine decided and how long the lift has been stuck.
+struct StallBadge: View {
+    var action: StallAction
+    var streak: Int
+
+    private var text: String {
+        streak > 0 ? "\(action.label) · stalled \(streak) session\(streak == 1 ? "" : "s")" : action.label
+    }
+
+    var body: some View {
+        Label(text, systemImage: action.systemImage)
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(.orange.opacity(0.2), in: Capsule())
+            .foregroundStyle(.orange)
+            .accessibilityLabel(text)
     }
 }
 
@@ -210,7 +309,7 @@ struct MacroProgressRow: View {
                 Text(label)
                 Spacer()
                 Text("\(Units.number(eaten, maxFraction: 0)) / \(Units.number(target, maxFraction: 0)) \(unit)")
-                    .foregroundStyle(.secondary)
+                    .monospacedDigit().foregroundStyle(.secondary)
             }
             ProgressView(value: min(eaten, target), total: max(target, 1))
         }

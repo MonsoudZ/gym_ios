@@ -3,6 +3,8 @@ import SwiftData
 
 @Model
 final class Exercise {
+    /// Stable identity for program days and plans; the name is editable.
+    var id: UUID = UUID()
     @Attribute(.unique) var name: String
     var muscles: [MuscleWeight]
     var repRangeLow: Int
@@ -11,9 +13,12 @@ final class Exercise {
     var setCount: Int
     var rpeCap: Double
     var startingWeight: Double?
+    /// Rest between working sets, started when a set is ticked done (RestRule).
+    var restSeconds: Int = RestRule.lightSeconds
     @Relationship(inverse: \SetEntry.exercise) var sets: [SetEntry] = []
 
     init(spec: ExerciseSpec) {
+        id = UUID()
         name = spec.name
         muscles = spec.muscles
         repRangeLow = spec.repRangeLow
@@ -22,10 +27,12 @@ final class Exercise {
         setCount = spec.setCount
         rpeCap = 9
         startingWeight = nil
+        restSeconds = RestRule.defaultSeconds(repRangeHigh: spec.repRangeHigh)
     }
 
     /// A blank custom exercise. Defaults: 3 × 8–12, one small plate step.
     init(name: String, metric: Bool) {
+        id = UUID()
         self.name = name
         muscles = []
         repRangeLow = 8
@@ -34,6 +41,7 @@ final class Exercise {
         setCount = 3
         rpeCap = 9
         startingWeight = nil
+        restSeconds = RestRule.defaultSeconds(repRangeHigh: repRangeHigh)
     }
 
     var isFromLibrary: Bool { ExerciseLibrary.spec(name) != nil }
@@ -50,8 +58,8 @@ final class Exercise {
     /// Completed sessions that include this exercise, oldest first, as engine input.
     func sessionResults() -> [SessionResult] {
         var bySession: [UUID: (session: WorkoutSession, sets: [SetEntry])] = [:]
-        for set in sets {
-            guard let session = set.session, session.isCompleted else { continue }
+        for set in completedSets() {
+            guard let session = set.session else { continue }
             bySession[session.id, default: (session, [])].sets.append(set)
         }
         return bySession.values
@@ -63,5 +71,22 @@ final class Exercise {
                 return SessionResult(date: entry.session.date, sets: logged,
                                      readinessWasLow: entry.session.readiness.isLow(for: muscles))
             }
+    }
+
+    /// This exercise's sets in completed sessions, fetched by predicate so the store does the
+    /// filtering instead of every set's session being faulted in. Falls back to the relationship
+    /// when the exercise is not in a context yet.
+    private func completedSets() -> [SetEntry] {
+        guard let modelContext else {
+            return sets.filter { $0.session?.isCompleted == true }
+        }
+        let exerciseID = id
+        let descriptor = FetchDescriptor<SetEntry>(
+            predicate: #Predicate { $0.exercise?.id == exerciseID && $0.session?.isCompleted == true })
+        do {
+            return try modelContext.fetch(descriptor)
+        } catch {
+            return sets.filter { $0.session?.isCompleted == true }
+        }
     }
 }

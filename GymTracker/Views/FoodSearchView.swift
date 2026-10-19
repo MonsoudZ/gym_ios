@@ -13,7 +13,17 @@ struct FoodSearchView: View {
     @State private var selected: FoodDraft?
     @State private var showScanner = false
     @State private var showManual = false
-    @State private var barcodeMessage: String?
+    @State private var barcode: BarcodeLookup?
+    @State private var searchAttempt = 0
+
+    private enum BarcodeLookup: Equatable {
+        case looking(String), notFound(String), failed(String)
+    }
+
+    private struct SearchKey: Hashable {
+        var query: String
+        var attempt: Int
+    }
 
     private var savedMatches: [FoodItem] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -24,6 +34,10 @@ struct FoodSearchView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Button("Scan barcode", systemImage: "barcode.viewfinder") { showScanner = true }
+                    barcodeRow
+                }
                 if !savedMatches.isEmpty {
                     Section("Your foods") {
                         ForEach(savedMatches, id: \.persistentModelID) { item in
@@ -32,36 +46,35 @@ struct FoodSearchView: View {
                         }
                     }
                 }
-                Section {
+                Section("Open Food Facts") {
                     if isSearching {
                         HStack { ProgressView(); Text("Searching…").foregroundStyle(.secondary) }
                     } else if let searchError {
-                        Text(searchError).foregroundStyle(.secondary)
+                        StatusRow(text: searchError, systemImage: "wifi.exclamationmark", action: "Retry") { searchAttempt += 1 }
                     } else if query.count < 2 {
-                        Text("Type a food name, or scan a barcode.").foregroundStyle(.secondary)
+                        EmptyState("Search by name", systemImage: "magnifyingglass",
+                                   description: "Type a food name above to search the Open Food Facts database.")
                     } else if results.isEmpty {
-                        Text("No results. Try fewer words, or add it manually.").foregroundStyle(.secondary)
+                        StatusRow(text: "No results for “\(query)”. Try fewer words.", systemImage: "magnifyingglass",
+                                  action: "Add manually") { showManual = true }
                     }
                     ForEach(results) { draft in
                         Button { selected = draft } label: { FoodRow(draft: draft) }
                             .foregroundStyle(.primary)
                     }
-                } header: {
-                    Text("Open Food Facts")
+                }
+                Section {
+                    Button("Add manually", systemImage: "square.and.pencil") { showManual = true }
                 } footer: {
-                    if let barcodeMessage { Text(barcodeMessage) }
+                    Text("For foods that are not in the database, or when you know the macros.")
                 }
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search foods")
-            .task(id: query) { await runSearch() }
+            .task(id: SearchKey(query: query, attempt: searchAttempt)) { await runSearch() }
             .navigationTitle("Add food")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button("Scan barcode", systemImage: "barcode.viewfinder") { showScanner = true }
-                    Button("Manual entry", systemImage: "square.and.pencil") { showManual = true }
-                }
             }
             .sheet(item: $selected) { draft in
                 LogFoodView(draft: draft) { dismiss() }
@@ -73,6 +86,21 @@ struct FoodSearchView: View {
                 }
             }
             .sheet(isPresented: $showManual) { AddIntakeView() }
+        }
+    }
+
+    @ViewBuilder private var barcodeRow: some View {
+        switch barcode {
+        case .looking(let code):
+            HStack { ProgressView(); Text("Looking up \(code)…").foregroundStyle(.secondary) }
+        case .notFound(let code):
+            StatusRow(text: "\(code) is not in Open Food Facts yet.", systemImage: "questionmark.circle",
+                      action: "Add manually") { showManual = true }
+        case .failed(let code):
+            StatusRow(text: "Lookup failed for \(code). Check your connection.", systemImage: "wifi.exclamationmark",
+                      action: "Retry") { Task { await lookup(barcode: code) } }
+        case nil:
+            EmptyView()
         }
     }
 
@@ -95,18 +123,35 @@ struct FoodSearchView: View {
         isSearching = false
     }
 
-    private func lookup(barcode: String) async {
-        barcodeMessage = "Looking up \(barcode)…"
+    private func lookup(barcode code: String) async {
+        barcode = .looking(code)
         do {
-            if let draft = try await OpenFoodFactsClient.shared.product(barcode: barcode) {
-                barcodeMessage = nil
+            if let draft = try await OpenFoodFactsClient.shared.product(barcode: code) {
+                barcode = nil
                 selected = draft
             } else {
-                barcodeMessage = "Barcode \(barcode) is not in Open Food Facts yet. Add it manually."
+                barcode = .notFound(code)
             }
         } catch {
-            barcodeMessage = "Lookup failed for \(barcode). Check your connection."
+            barcode = .failed(code)
         }
+    }
+}
+
+/// A problem or empty result as a list row with the one thing to do about it.
+struct StatusRow: View {
+    var text: String
+    var systemImage: String
+    var action: String
+    var onAction: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Label(text, systemImage: systemImage).foregroundStyle(.secondary)
+            Spacer()
+            Button(action, action: onAction).font(.subheadline.weight(.medium))
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -120,7 +165,7 @@ struct FoodRow: View {
                 if !draft.brand.isEmpty { Text(draft.brand).lineLimit(1) }
                 Text("\(Units.number(draft.kcalPer100g, maxFraction: 0)) kcal · P \(Units.number(draft.proteinPer100g, maxFraction: 0)) · C \(Units.number(draft.carbsPer100g, maxFraction: 0)) · F \(Units.number(draft.fatPer100g, maxFraction: 0)) per 100 g")
             }
-            .font(.caption).foregroundStyle(.secondary)
+            .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
         }
     }
 }
@@ -145,8 +190,9 @@ struct LogFoodView: View {
                     HStack {
                         Text("Amount")
                         Spacer()
-                        TextField("g", value: $grams, format: .number.precision(.fractionLength(0...1)))
+                        TextField("amount", value: $grams, format: .number.precision(.fractionLength(0...1)))
                             .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 90)
+                            .font(.body.monospacedDigit())
                         Text("g").foregroundStyle(.secondary)
                     }
                     HStack {
@@ -160,11 +206,11 @@ struct LogFoodView: View {
                     .buttonStyle(.bordered).font(.caption)
                 }
                 Section("This amount") {
-                    LabeledContent("Calories", value: "\(Units.number(macros.kcal, maxFraction: 0)) kcal")
-                    LabeledContent("Protein", value: "\(Units.number(macros.protein, maxFraction: 0)) g")
-                    LabeledContent("Carbs", value: "\(Units.number(macros.carbs, maxFraction: 0)) g")
-                    LabeledContent("Fat", value: "\(Units.number(macros.fat, maxFraction: 0)) g")
-                    LabeledContent("Fibre", value: "\(Units.number(macros.fibre, maxFraction: 0)) g")
+                    LabeledContent("Calories") { Text("\(Units.number(macros.kcal, maxFraction: 0)) kcal").monospacedDigit() }
+                    LabeledContent("Protein") { Text("\(Units.number(macros.protein, maxFraction: 0)) g").monospacedDigit() }
+                    LabeledContent("Carbs") { Text("\(Units.number(macros.carbs, maxFraction: 0)) g").monospacedDigit() }
+                    LabeledContent("Fat") { Text("\(Units.number(macros.fat, maxFraction: 0)) g").monospacedDigit() }
+                    LabeledContent("Fibre") { Text("\(Units.number(macros.fibre, maxFraction: 0)) g").monospacedDigit() }
                 }
             }
             .navigationTitle("Log food")
@@ -194,7 +240,7 @@ struct LogFoodView: View {
             item.useCount = 1
             context.insert(item)
         }
-        try? context.save()
+        context.saveOrLog()
         dismiss()
         onLogged()
     }

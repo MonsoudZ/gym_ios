@@ -6,6 +6,9 @@ final class WorkoutSession {
     var id: UUID
     var date: Date
     var templateDayName: String
+    /// The program day this session came from. Rotation matches on this first and falls back to
+    /// the name for sessions logged before days had ids, so renaming a day no longer resets it.
+    var programDayID: UUID?
     var sleepHours: Double?
     var sorenessByMuscle: [String: Int]
     var isCompleted: Bool
@@ -18,6 +21,15 @@ final class WorkoutSession {
         self.sleepHours = sleepHours
         sorenessByMuscle = Dictionary(uniqueKeysWithValues: soreness.map { ($0.key.rawValue, $0.value) })
         isCompleted = false
+    }
+
+    /// Copies the day's check-in onto the session, so history keeps what the lifter reported.
+    convenience init(date: Date = .now, templateDayName: String, readiness entry: ReadinessEntry?) {
+        var soreness: [Muscle: Int] = [:]
+        for (key, value) in entry?.sorenessByMuscle ?? [:] {
+            if let muscle = Muscle(rawValue: key) { soreness[muscle] = value }
+        }
+        self.init(date: date, templateDayName: templateDayName, sleepHours: entry?.sleepHours, soreness: soreness)
     }
 
     var readiness: Readiness {
@@ -39,6 +51,9 @@ final class WorkoutSession {
         }
         return result
     }
+
+    /// Sets with reps entered. Finishing drops the others, so the Finish dialog quotes this.
+    var loggedSetCount: Int { sets.filter { $0.reps > 0 }.count }
 
     func sets(for exercise: Exercise) -> [SetEntry] {
         sets.filter { $0.exercise?.persistentModelID == exercise.persistentModelID }

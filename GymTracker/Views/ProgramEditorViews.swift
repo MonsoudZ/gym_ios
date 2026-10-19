@@ -9,6 +9,7 @@ struct ProgramsListView: View {
     @Query private var settingsList: [UserSettings]
     @State private var newName = ""
     @State private var showNew = false
+    @State private var programToDelete: Program?
 
     private var settings: UserSettings? { settingsList.first }
 
@@ -28,7 +29,7 @@ struct ProgramsListView: View {
                     }
                 }
             }
-            .onDelete(perform: delete)
+            .onDelete { offsets in programToDelete = offsets.first.map { programs[$0] } }
             Section {
                 Button("New program", systemImage: "plus") { newName = ""; showNew = true }
             } footer: {
@@ -36,11 +37,22 @@ struct ProgramsListView: View {
             }
         }
         .navigationTitle("Programs")
-        .navigationDestination(for: Program.self) { ProgramEditorView(program: $0) }
+        // The destination for Program is declared once, on the Settings stack root. Declaring it
+        // here as well made SwiftUI push the editor and pop it straight back.
         .alert("New program", isPresented: $showNew) {
             TextField("Name", text: $newName)
             Button("Create") { create() }
             Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog(Text("Delete \(programToDelete?.name ?? "program")?"),
+                            isPresented: Binding(get: { programToDelete != nil }, set: { if !$0 { programToDelete = nil } }),
+                            titleVisibility: .visible, presenting: programToDelete) { program in
+            Button("Delete program and \(program.days.count) day\(program.days.count == 1 ? "" : "s")", role: .destructive) { delete(program) }
+            Button("Keep", role: .cancel) {}
+        } message: { program in
+            Text(settings?.activeProgram(in: programs)?.id == program.id
+                 ? "This is your active program. Past workouts are kept; another program becomes active."
+                 : "Past workouts are kept.")
         }
     }
 
@@ -50,18 +62,15 @@ struct ProgramsListView: View {
         let program = Program(name: name)
         context.insert(program)
         settings?.activeProgramID = program.id
-        try? context.save()
+        context.saveOrLog()
     }
 
-    private func delete(at offsets: IndexSet) {
-        for index in offsets {
-            let program = programs[index]
-            context.delete(program)
-            if settings?.activeProgramID == program.id {
-                settings?.activeProgramID = programs.first { $0.id != program.id }?.id
-            }
+    private func delete(_ program: Program) {
+        context.delete(program)
+        if settings?.activeProgramID == program.id {
+            settings?.activeProgramID = programs.first { $0.id != program.id }?.id
         }
-        try? context.save()
+        context.saveOrLog()
     }
 }
 
@@ -72,6 +81,7 @@ struct ProgramEditorView: View {
     @Environment(\.modelContext) private var context
     @Query private var settingsList: [UserSettings]
     @Query(sort: \Program.createdAt) private var programs: [Program]
+    @Query(sort: \Exercise.name) private var exercises: [Exercise]
     @State private var newDayName = ""
     @State private var showNewDay = false
 
@@ -87,7 +97,7 @@ struct ProgramEditorView: View {
                 } else {
                     Button("Make this the active program") {
                         settings?.activeProgramID = program.id
-                        try? context.save()
+                        context.saveOrLog()
                     }
                 }
             }
@@ -96,7 +106,8 @@ struct ProgramEditorView: View {
                     NavigationLink(value: day) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(day.name)
-                            Text(day.exerciseNames.isEmpty ? "No exercises yet" : day.exerciseNames.joined(separator: ", "))
+                            let names = day.exercises(from: exercises).map(\.name)
+                            Text(names.isEmpty ? "No exercises yet" : names.joined(separator: ", "))
                                 .font(.caption).foregroundStyle(.secondary).lineLimit(2)
                         }
                     }
@@ -121,7 +132,7 @@ struct ProgramEditorView: View {
                 guard !name.isEmpty else { return }
                 let day = program.addDay(named: name)
                 context.insert(day)
-                try? context.save()
+                context.saveOrLog()
             }
             Button("Cancel", role: .cancel) {}
         }
@@ -131,14 +142,14 @@ struct ProgramEditorView: View {
         let days = program.orderedDays
         for index in offsets { context.delete(days[index]) }
         program.renumberDays()
-        try? context.save()
+        context.saveOrLog()
     }
 
     private func moveDays(from source: IndexSet, to destination: Int) {
         var days = program.orderedDays
         days.move(fromOffsets: source, toOffset: destination)
         for (index, day) in days.enumerated() { day.order = index }
-        try? context.save()
+        context.saveOrLog()
     }
 }
 
@@ -149,7 +160,6 @@ struct DayEditorView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
     @Query private var settingsList: [UserSettings]
-    @State private var showPicker = false
 
     private var metric: Bool { settingsList.first?.usesMetric ?? false }
 
@@ -159,16 +169,20 @@ struct DayEditorView: View {
                 TextField("Day name", text: $day.name)
             }
             Section {
-                ForEach(day.exerciseNames, id: \.self) { name in
-                    if let exercise = exercises.first(where: { $0.name == name }) {
+                ForEach(day.exerciseIDs, id: \.self) { exerciseID in
+                    if let exercise = exercises.first(where: { $0.id == exerciseID }) {
                         NavigationLink(value: exercise) { ExerciseSummaryRow(exercise: exercise, metric: metric) }
                     } else {
-                        Text(name).foregroundStyle(.secondary)
+                        Text("Missing exercise").foregroundStyle(.secondary)
                     }
                 }
-                .onDelete { offsets in day.exerciseNames.remove(atOffsets: offsets); try? context.save() }
-                .onMove { source, destination in day.exerciseNames.move(fromOffsets: source, toOffset: destination); try? context.save() }
-                Button("Add exercise", systemImage: "plus") { showPicker = true }
+                .onDelete { offsets in day.exerciseIDs.remove(atOffsets: offsets); context.saveOrLog() }
+                .onMove { source, destination in day.exerciseIDs.move(fromOffsets: source, toOffset: destination); context.saveOrLog() }
+                NavigationLink {
+                    ExercisePickerView(day: day)
+                } label: {
+                    Label("Add exercises", systemImage: "plus")
+                }
             } header: {
                 Text("Exercises")
             } footer: {
@@ -179,12 +193,6 @@ struct DayEditorView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { EditButton() }
         .navigationDestination(for: Exercise.self) { ExerciseEditorView(exercise: $0) }
-        .sheet(isPresented: $showPicker) {
-            ExercisePickerView(excluding: Set(day.exerciseNames)) { exercise in
-                day.exerciseNames.append(exercise.name)
-                try? context.save()
-            }
-        }
     }
 }
 
@@ -196,7 +204,7 @@ struct ExerciseSummaryRow: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(exercise.name)
             Text("\(exercise.setCount) × \(exercise.repRangeLow)–\(exercise.repRangeHigh) · +\(Units.weight(exercise.increment, metric: metric))\(musclesText)")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
         }
     }
 
@@ -206,14 +214,14 @@ struct ExerciseSummaryRow: View {
     }
 }
 
-// MARK: - Pick an exercise (library or new)
+// MARK: - Pick exercises (library or new)
 
+/// Pushed from a day. Tapping a row adds it to the day at once and ticks it; tapping again
+/// removes it, so several exercises can be added without leaving the screen.
 struct ExercisePickerView: View {
-    var excluding: Set<String>
-    var onPick: (Exercise) -> Void
+    @Bindable var day: ProgramDay
 
     @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
     @Query private var settingsList: [UserSettings]
     @State private var query = ""
@@ -223,40 +231,57 @@ struct ExercisePickerView: View {
 
     private var filtered: [Exercise] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        return exercises.filter { !excluding.contains($0.name) && (q.isEmpty || $0.name.lowercased().contains(q)
-            || $0.muscles.contains { $0.muscle.displayName.lowercased().contains(q) }) }
+        return exercises.filter { q.isEmpty || $0.name.lowercased().contains(q)
+            || $0.muscles.contains { $0.muscle.displayName.lowercased().contains(q) } }
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button("New exercise…", systemImage: "plus.circle") {
-                        newExercise = Exercise(name: query.trimmingCharacters(in: .whitespaces), metric: metric)
-                    }
-                }
-                Section("Library") {
-                    ForEach(filtered, id: \.persistentModelID) { exercise in
-                        Button { onPick(exercise); dismiss() } label: { ExerciseSummaryRow(exercise: exercise, metric: metric) }
-                            .foregroundStyle(.primary)
-                    }
+        List {
+            Section {
+                Button("New exercise…", systemImage: "plus.circle") {
+                    newExercise = Exercise(name: query.trimmingCharacters(in: .whitespaces), metric: metric)
                 }
             }
-            .searchable(text: $query, prompt: "Search by name or muscle")
-            .navigationTitle("Add exercise")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-            .sheet(item: $newExercise) { exercise in
-                NavigationStack {
-                    ExerciseEditorView(exercise: exercise, isNew: true) {
-                        context.insert(exercise)
-                        try? context.save()
-                        onPick(exercise)
-                        dismiss()
+            Section {
+                ForEach(filtered, id: \.persistentModelID) { exercise in
+                    let added = day.exerciseIDs.contains(exercise.id)
+                    Button { toggle(exercise) } label: {
+                        HStack {
+                            ExerciseSummaryRow(exercise: exercise, metric: metric)
+                            Spacer()
+                            Image(systemName: added ? "checkmark.circle.fill" : "plus.circle")
+                                .foregroundStyle(added ? Color.green : Color.accentColor)
+                                .contentTransition(.symbolEffect(.replace))
+                        }
                     }
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel(added ? "\(exercise.name), added. Double tap to remove." : "Add \(exercise.name)")
+                }
+            } header: {
+                Text(day.exerciseIDs.isEmpty ? "Library" : "Library · \(day.exerciseIDs.count) in \(day.name)")
+            }
+        }
+        .searchable(text: $query, prompt: "Search by name or muscle")
+        .navigationTitle("Add to \(day.name)")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $newExercise) { exercise in
+            NavigationStack {
+                ExerciseEditorView(exercise: exercise, isNew: true) {
+                    context.insert(exercise)
+                    day.exerciseIDs.append(exercise.id)
+                    context.saveOrLog()
                 }
             }
         }
+    }
+
+    private func toggle(_ exercise: Exercise) {
+        if let index = day.exerciseIDs.firstIndex(of: exercise.id) {
+            day.exerciseIDs.remove(at: index)
+        } else {
+            day.exerciseIDs.append(exercise.id)
+        }
+        context.saveOrLog()
     }
 }
 
@@ -306,21 +331,25 @@ struct ExerciseEditorView: View {
                 Picker("RPE cap", selection: $exercise.rpeCap) {
                     ForEach(Self.rpeCaps, id: \.self) { Text(Units.number($0)).tag($0) }
                 }
+                Stepper(value: $exercise.restSeconds, in: RestRule.minimumSeconds...RestRule.maximumSeconds, step: RestRule.stepSeconds) {
+                    HStack { Text("Rest between sets"); Spacer(); Text(RestRule.label(exercise.restSeconds)).monospacedDigit().foregroundStyle(.secondary) }
+                }
             } header: {
                 Text("Targets")
             } footer: {
-                Text("Progress when every set hits the top of the range at or under the RPE cap. 3–6 reps for strength, 6–12 for size, 12–20 for isolation.")
+                Text("Progress when every set hits the top of the range at or under the RPE cap. 3–6 reps for strength, 6–12 for size, 12–20 for isolation. Rest 3 min on heavy lifts, 2 min on lighter work; a timer starts when you tick a set done.")
             }
 
             Section {
                 Stepper(value: incrementDisplay, in: metric ? 0.5...20 : 1...50, step: metric ? 0.5 : 0.5) {
-                    HStack { Text("Add when progressing"); Spacer(); Text("\(Units.number(incrementDisplay.wrappedValue)) \(unit)").foregroundStyle(.secondary) }
+                    HStack { Text("Add when progressing"); Spacer(); Text("\(Units.number(incrementDisplay.wrappedValue)) \(unit)").monospacedDigit().foregroundStyle(.secondary) }
                 }
                 HStack {
                     Text("Starting weight")
                     Spacer()
                     TextField("optional", value: startingDisplay, format: .number.precision(.fractionLength(0...1)))
                         .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 90)
+                        .font(.body.monospacedDigit())
                     Text(unit).foregroundStyle(.secondary)
                 }
             } header: {
@@ -355,7 +384,7 @@ struct ExerciseEditorView: View {
                 }
             }
         }
-        .onDisappear { if !isNew { try? context.save() } }
+        .onDisappear { if !isNew { context.saveOrLog() } }
     }
 
     private func muscleBinding(_ muscle: Muscle) -> Binding<Double> {

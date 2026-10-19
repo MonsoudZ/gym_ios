@@ -34,6 +34,16 @@ nonisolated enum Verdict: String, Sendable {
         case .incomplete: "Incomplete"
         }
     }
+
+    /// Shown with the label so the verdict never rests on colour alone.
+    var systemImage: String {
+        switch self {
+        case .progressed: "arrow.up.circle.fill"
+        case .held: "equal.circle"
+        case .failed: "arrow.down.circle.fill"
+        case .incomplete: "minus.circle"
+        }
+    }
 }
 
 /// Daily readiness inputs. Deliberately small, capped effect (DESIGN.md §2.4).
@@ -61,6 +71,14 @@ nonisolated enum StallAction: String, Sendable {
         case .addSet: "Add a set"
         case .fixRecovery: "Fix recovery"
         case .deload: "Deload"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .addSet: "plus.circle"
+        case .fixRecovery: "bed.double"
+        case .deload: "arrow.down.right.circle"
         }
     }
 }

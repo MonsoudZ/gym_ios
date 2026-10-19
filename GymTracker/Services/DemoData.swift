@@ -20,10 +20,11 @@ enum DemoData {
         let today = cal.startOfDay(for: .now)
         let start = cal.date(byAdding: .day, value: -56, to: today)!
 
-        settings.templateName = ProgramTemplates.upperLower.name
+        var dayIDsByName: [String: UUID] = [:]
         if let programs = try? context.fetch(FetchDescriptor<Program>()),
-           let upperLower = programs.first(where: { $0.name == ProgramTemplates.upperLower.name }) {
+           let upperLower = programs.first(where: { $0.name == BuiltInPrograms.upperLower.name }) {
             settings.activeProgramID = upperLower.id
+            dayIDsByName = Dictionary(upperLower.days.map { ($0.name, $0.id) }, uniquingKeysWith: { first, _ in first })
         }
         settings.goal = .cut
         settings.goalRatePercentPerWeek = -0.5
@@ -56,7 +57,7 @@ enum DemoData {
             "Deadlift": 285, "Hip Thrust": 225, "Leg Extension": 110,
         ]
         var loads = loadsLb.mapValues { Units.kg(fromLb: $0) }
-        let template = ProgramTemplates.upperLower
+        let template = BuiltInPrograms.upperLower
         var dayIndex = 0
         var sessionCount = 0
         for week in 0..<8 {
@@ -68,10 +69,11 @@ enum DemoData {
                 sessionCount += 1
                 let session = WorkoutSession(date: date, templateDayName: day.name,
                                              sleepHours: Double.random(in: 6...8.5, using: &rng).rounded(toPlaces: 1))
+                session.programDayID = dayIDsByName[day.name]
                 session.isCompleted = true
                 context.insert(session)
 
-                for (order, spec) in day.exercises.enumerated() {
+                for (order, spec) in day.specs.enumerated() {
                     guard let exercise = exercises.first(where: { $0.name == spec.name }) else { continue }
                     let weight = loads[spec.name] ?? Units.kg(fromLb: 45)
                     // Bench holds for its last three Upper A sessions (one per week) so the Today screen has a deload to show.
@@ -96,7 +98,7 @@ enum DemoData {
                 }
             }
         }
-        try? context.save()
+        context.saveOrLog()
     }
 }
 

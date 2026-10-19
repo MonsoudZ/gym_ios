@@ -10,6 +10,15 @@ nonisolated enum VolumeBand: Sendable {
         case .high: "High"
         }
     }
+
+    /// Short form for chart annotations, where colour alone would carry the band.
+    var shortLabel: String {
+        switch self {
+        case .low: "low"
+        case .ok: ""
+        case .high: "high"
+        }
+    }
 }
 
 nonisolated struct VolumeSet: Hashable, Sendable {

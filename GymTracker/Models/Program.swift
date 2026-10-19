@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// A training program you own: an ordered list of days, each an ordered list of exercise names.
+/// A training program you own: an ordered list of days, each an ordered list of exercises.
 /// The built-in splits are seeded as Programs so they can be edited like any other.
 @Model
 final class Program {
@@ -18,11 +18,7 @@ final class Program {
 
     var orderedDays: [ProgramDay] { days.sorted { $0.order < $1.order } }
 
-    /// Value-type view for the planning engine.
-    var asTemplate: ProgramTemplate {
-        ProgramTemplate(name: name, summary: "", days: orderedDays.map { TemplateDay(name: $0.name, exerciseNames: $0.exerciseNames) })
-    }
-
+    @discardableResult
     func addDay(named name: String) -> ProgramDay {
         let day = ProgramDay(name: name, order: (days.map(\.order).max() ?? -1) + 1)
         day.program = self
@@ -34,10 +30,13 @@ final class Program {
         for (index, day) in orderedDays.enumerated() { day.order = index }
     }
 
-    static func make(from template: ProgramTemplate) -> Program {
-        let program = Program(name: template.name)
-        for (index, day) in template.days.enumerated() {
-            let model = ProgramDay(name: day.name, order: index, exerciseNames: day.exerciseNames)
+    /// Turns a built-in split into a program. Names are resolved against `exercises` here and
+    /// nowhere else; a name with no matching exercise is dropped.
+    static func make(from builtIn: BuiltInProgram, exercises: [Exercise]) -> Program {
+        let idsByName = Dictionary(exercises.map { ($0.name, $0.id) }, uniquingKeysWith: { first, _ in first })
+        let program = Program(name: builtIn.name)
+        for (index, day) in builtIn.days.enumerated() {
+            let model = ProgramDay(name: day.name, order: index, exerciseIDs: day.exerciseNames.compactMap { idsByName[$0] })
             model.program = program
             program.days.append(model)
         }
@@ -50,13 +49,23 @@ final class ProgramDay {
     var id: UUID
     var name: String
     var order: Int
-    var exerciseNames: [String]
+    /// Exercises in order, by `Exercise.id`, so renaming an exercise leaves the day intact.
+    var exerciseIDs: [UUID] = []
+    /// Exercise names from installs that predate `exerciseIDs`. `Seeder.migrate` turns these
+    /// into ids on launch; nothing else reads them.
+    @Attribute(originalName: "exerciseNames") var legacyExerciseNames: [String] = []
     var program: Program?
 
-    init(name: String, order: Int, exerciseNames: [String] = []) {
+    init(name: String, order: Int, exerciseIDs: [UUID] = []) {
         id = UUID()
         self.name = name
         self.order = order
-        self.exerciseNames = exerciseNames
+        self.exerciseIDs = exerciseIDs
+    }
+
+    /// The day's exercises in order, skipping any id that no longer resolves.
+    func exercises(from all: [Exercise]) -> [Exercise] {
+        let byID = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return exerciseIDs.compactMap { byID[$0] }
     }
 }

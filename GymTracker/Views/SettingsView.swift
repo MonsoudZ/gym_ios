@@ -10,13 +10,17 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            if let settings = settingsList.first {
-                SettingsForm(settings: settings, exercises: exercises, programs: programs, confirmReset: $confirmReset)
-                    .navigationTitle("Settings")
-                    .navigationDestination(for: Program.self) { ProgramEditorView(program: $0) }
-            } else {
-                ProgressView()
+            Group {
+                if let settings = settingsList.first {
+                    SettingsForm(settings: settings, exercises: exercises, programs: programs, confirmReset: $confirmReset)
+                } else {
+                    ProgressView()
+                }
             }
+            .navigationTitle("Settings")
+            // Declared once, unconditionally, at the stack root: inside the `if let` it could be
+            // torn down on a query update and pop the pushed editor.
+            .navigationDestination(for: Program.self) { ProgramEditorView(program: $0) }
         }
     }
 }
@@ -30,43 +34,6 @@ private struct SettingsForm: View {
 
     var body: some View {
         Form {
-            Section("Goal") {
-                Picker("Goal", selection: $settings.goal) {
-                    ForEach(Goal.allCases, id: \.self) { Text($0.label).tag($0) }
-                }
-                .onChange(of: settings.goal) { _, goal in
-                    settings.goalRatePercentPerWeek = goal.defaultRatePercentPerWeek
-                    settings.cumulativeAdjustmentKcal = 0
-                }
-                if settings.goal != .maintain {
-                    let range = settings.goal.rateRange
-                    VStack(alignment: .leading) {
-                        Text("Rate: \(Units.percent(settings.goalRatePercentPerWeek)) of bodyweight per week")
-                        Slider(value: $settings.goalRatePercentPerWeek, in: range, step: 0.05)
-                        Text(settings.goal == .cut
-                             ? "Slower loss keeps more muscle (Garthe 2011). 0.5% is the default."
-                             : "Faster than 0.5%/week is mostly fat in trained lifters.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                Stepper(value: Binding(get: { settings.proteinPerKg },
-                                       set: { settings.proteinPerKgOverride = $0 }),
-                        in: 1.2...3.0, step: 0.1) {
-                    HStack {
-                        Text("Protein")
-                        Spacer()
-                        Text("\(Units.number(settings.proteinPerKg)) g/kg · \(Units.number(settings.proteinPerKg * settings.assumedWeightKg, maxFraction: 0)) g")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                if settings.proteinPerKgOverride != nil {
-                    Button("Use the evidence-based default (\(Units.number(settings.goal.proteinPerKg)) g/kg)") {
-                        settings.proteinPerKgOverride = nil
-                    }
-                    .font(.caption)
-                }
-            }
-
             Section {
                 Picker("Active program", selection: Binding(
                     get: { settings.activeProgram(in: programs)?.id ?? UUID() },
@@ -101,6 +68,43 @@ private struct SettingsForm: View {
                 Text("Units")
             } footer: {
                 Text("Weights are stored in kilograms and shown in your unit. Lift increments follow the unit: 5 lb and 10 lb plates, or 2.5 kg and 5 kg.")
+            }
+
+            Section("Goal") {
+                Picker("Goal", selection: $settings.goal) {
+                    ForEach(Goal.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .onChange(of: settings.goal) { _, goal in
+                    settings.goalRatePercentPerWeek = goal.defaultRatePercentPerWeek
+                    settings.cumulativeAdjustmentKcal = 0
+                }
+                if settings.goal != .maintain {
+                    let range = settings.goal.rateRange
+                    VStack(alignment: .leading) {
+                        Text("Rate: \(Units.percent(settings.goalRatePercentPerWeek)) of bodyweight per week")
+                        Slider(value: $settings.goalRatePercentPerWeek, in: range, step: 0.05)
+                        Text(settings.goal == .cut
+                             ? "Slower loss keeps more muscle (Garthe 2011). 0.5% is the default."
+                             : "Faster than 0.5%/week is mostly fat in trained lifters.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Stepper(value: Binding(get: { settings.proteinPerKg },
+                                       set: { settings.proteinPerKgOverride = $0 }),
+                        in: 1.2...3.0, step: 0.1) {
+                    HStack {
+                        Text("Protein")
+                        Spacer()
+                        Text("\(Units.number(settings.proteinPerKg)) g/kg · \(Units.number(settings.proteinPerKg * settings.assumedWeightKg, maxFraction: 0)) g")
+                            .monospacedDigit().foregroundStyle(.secondary)
+                    }
+                }
+                if settings.proteinPerKgOverride != nil {
+                    Button("Use the evidence-based default (\(Units.number(settings.goal.proteinPerKg)) g/kg)") {
+                        settings.proteinPerKgOverride = nil
+                    }
+                    .font(.caption)
+                }
             }
 
             Section {

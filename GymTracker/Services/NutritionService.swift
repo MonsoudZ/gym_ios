@@ -12,6 +12,9 @@ struct NutritionSnapshot {
     var trendRatePercentPerWeek: Double?
     var suggestedAdjustment: Adjustment?
     var eatenToday: Macros
+
+    /// The one sentence shown wherever a provisional target appears, so Today and Nutrition agree.
+    static let provisionalNote = "Provisional target from the Mifflin–St Jeor formula. It becomes adaptive after about two weeks of logged weight and intake."
 }
 
 enum NutritionService {

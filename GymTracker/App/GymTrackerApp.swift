@@ -9,15 +9,14 @@ struct GymTrackerApp: App {
         let schema = Schema([
             Exercise.self, WorkoutSession.self, SetEntry.self,
             BodyweightEntry.self, IntakeEntry.self, UserSettings.self, FoodItem.self,
-            Program.self, ProgramDay.self,
+            Program.self, ProgramDay.self, ReadinessEntry.self,
         ])
         do {
             container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema)])
         } catch {
             fatalError("Could not create model container: \(error)")
         }
-        Seeder.seedIfNeeded(context: container.mainContext)
-        Seeder.ensurePrograms(context: container.mainContext)
+        Seeder.prepare(context: container.mainContext)
     }
 
     var body: some Scene {

@@ -6,33 +6,95 @@ struct ProgressTabView: View {
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
     @Query(sort: \WorkoutSession.date, order: .reverse) private var sessions: [WorkoutSession]
     @Query private var settingsList: [UserSettings]
+    @Environment(\.switchTab) private var switchTab
 
     private var completed: [WorkoutSession] { sessions.filter(\.isCompleted) }
     private var metric: Bool { settingsList.first?.usesMetric ?? true }
+    /// `sessions` is sorted newest first, so this is the most recent completed one.
+    private var lastSession: WorkoutSession? { sessions.first(where: \.isCompleted) }
 
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    VolumeChart(volume: PlanService.weeklyVolume(completedSessions: completed))
-                } header: {
-                    Text("Hard sets per muscle, last 7 days")
-                } footer: {
-                    Text("Dashed lines mark the evidence-based bands: 10 sets minimum, 20 where returns flatten.")
-                }
-                Section("Lifts") {
-                    let trained = exercises.filter { $0.sets.contains { $0.session?.isCompleted == true } }
-                    if trained.isEmpty {
-                        Text("Finish a workout to see your lifts here.").foregroundStyle(.secondary)
+                if let lastSession {
+                    Section("Last session") {
+                        LastSessionSummary(session: lastSession, metric: metric)
                     }
-                    ForEach(trained, id: \.persistentModelID) { exercise in
-                        NavigationLink(value: exercise) { LiftRow(exercise: exercise, metric: metric) }
+                    Section {
+                        VolumeChart(volume: PlanService.weeklyVolume(completedSessions: completed))
+                    } header: {
+                        Text("Hard sets per muscle, last 7 days")
+                    } footer: {
+                        Text("Dashed lines mark the evidence-based bands: 10 sets minimum, 20 where returns flatten.")
+                    }
+                    Section("Lifts") {
+                        let trained = exercises.filter { $0.sets.contains { $0.session?.isCompleted == true } }
+                        ForEach(trained, id: \.persistentModelID) { exercise in
+                            NavigationLink(value: exercise) { LiftRow(exercise: exercise, metric: metric) }
+                        }
+                    }
+                } else {
+                    EmptyState("No workouts yet", systemImage: "figure.strengthtraining.traditional",
+                               description: "Finish a workout and it will show here, with your lifts and weekly volume.") {
+                        Button("Start workout") { switchTab(.today) }
                     }
                 }
             }
             .navigationTitle("Progress")
             .navigationDestination(for: Exercise.self) { ExerciseProgressView(exercise: $0) }
         }
+    }
+}
+
+/// The most recent workout at a glance: when, which day, and each lift's top set with its verdict.
+struct LastSessionSummary: View {
+    var session: WorkoutSession
+    var metric: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if dynamicTypeSize.isAccessibilitySize {
+                Text(session.templateDayName).font(.headline)
+                Text(session.date, format: .dateTime.weekday(.wide).day().month())
+                    .font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                HStack {
+                    Text(session.templateDayName).font(.headline)
+                    Spacer()
+                    Text(session.date, format: .dateTime.weekday(.wide).day().month())
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+            }
+            ForEach(session.orderedExercises, id: \.persistentModelID) { exercise in
+                let sets = session.sets(for: exercise).map { LoggedSet(weight: $0.weight, reps: $0.reps, rpe: $0.rpe, isWarmup: $0.isWarmup) }
+                let verdict = ProgressionEngine.verdict(for: sets, config: exercise.config)
+                let topSet = ProgressionEngine.topWorkingWeight(sets).map {
+                    "\(Units.weight($0, metric: metric)) × \(sets.filter { !$0.isWarmup }.map { "\($0.reps)" }.joined(separator: ", "))"
+                }
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        // Three columns do not fit at these sizes; stack them.
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(exercise.name)
+                            if let topSet { Text(topSet).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary) }
+                            VerdictBadge(verdict: verdict, font: .subheadline)
+                        }
+                        .padding(.vertical, 4)
+                    } else {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(exercise.name)
+                            Spacer()
+                            if let topSet { Text(topSet).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary) }
+                            VerdictBadge(verdict: verdict)
+                                .frame(width: 112, alignment: .trailing)
+                        }
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 
@@ -74,7 +136,9 @@ struct VolumeChart: View {
                     BarMark(x: .value("Sets", row.sets), y: .value("Muscle", row.muscle.displayName))
                         .foregroundStyle(color(for: VolumeTracker.band(row.sets)))
                         .annotation(position: .trailing) {
-                            Text(Units.number(row.sets)).font(.caption2).foregroundStyle(.secondary)
+                            let band = VolumeTracker.band(row.sets)
+                            Text(band.shortLabel.isEmpty ? Units.number(row.sets) : "\(Units.number(row.sets)) · \(band.shortLabel)")
+                                .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                         }
                 }
                 RuleMark(x: .value("Minimum", VolumeTracker.minimumWeeklySets))
@@ -142,13 +206,12 @@ struct ExerciseProgressView: View {
                         HStack {
                             Text(result.date, format: .dateTime.day().month())
                             Spacer()
-                            Text(verdict.label).font(.caption)
-                                .foregroundStyle(verdict == .progressed ? .green : verdict == .failed ? .red : .secondary)
+                            VerdictBadge(verdict: verdict)
                         }
                         Text(result.sets.filter { !$0.isWarmup }
                             .map { "\(Units.weight($0.weight, metric: metric)) × \($0.reps)\($0.rpe.map { " @\(Units.number($0))" } ?? "")" }
                             .joined(separator: "  ·  "))
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -167,9 +230,9 @@ struct ExerciseProgressView: View {
                let earlier = NutritionEngine.value(in: points, atOrBefore: Calendar.current.date(byAdding: .day, value: -days, to: latest.date)!) {
                 let delta = latest.value - earlier.value
                 Text("\(delta >= 0 ? "+" : "")\(Units.weight(delta, metric: metric))")
-                    .bold().foregroundStyle(delta >= 0 ? .green : .red)
+                    .bold().monospacedDigit().foregroundStyle(delta >= 0 ? .green : .red)
             } else {
-                Text("Not enough history").foregroundStyle(.secondary)
+                Text("Not enough history yet").foregroundStyle(.secondary)
             }
         }
     }

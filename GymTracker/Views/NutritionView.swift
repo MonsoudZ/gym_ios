@@ -10,6 +10,7 @@ struct NutritionView: View {
 
     @State private var showAddFood = false
     @State private var weightText = ""
+    @FocusState private var weightFieldFocused: Bool
 
     private var settings: UserSettings? { settingsList.first }
 
@@ -35,12 +36,12 @@ struct NutritionView: View {
     }
 
     private func targetSection(_ snap: NutritionSnapshot, settings: UserSettings) -> some View {
-        Section {
+        Section("Today's target") {
             VStack(alignment: .leading, spacing: 6) {
                 Text("\(Units.number(snap.targetKcal, maxFraction: 0)) kcal")
                     .font(.title.bold().monospacedDigit())
                 Text(snap.isProvisional
-                     ? "Provisional, from Mifflin–St Jeor. Becomes adaptive after ~2 weeks of logging."
+                     ? NutritionSnapshot.provisionalNote
                      : "Adaptive: measured expenditure \(Units.number(snap.baseKcal, maxFraction: 0)) kcal, \(settings.goal.label.lowercased()) at \(Units.percent(settings.goalRatePercentPerWeek))/week.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -49,23 +50,21 @@ struct NutritionView: View {
             MacroProgressRow(label: "Fat", eaten: snap.eatenToday.fat, target: snap.macros.fat, unit: "g")
             MacroProgressRow(label: "Carbs", eaten: snap.eatenToday.carbs, target: snap.macros.carbs, unit: "g")
             MacroProgressRow(label: "Fibre", eaten: snap.eatenToday.fibre, target: snap.macros.fibre, unit: "g")
-        } header: {
-            Text("Today's target")
         }
     }
 
     @ViewBuilder private func expenditureSection(_ snap: NutritionSnapshot, settings: UserSettings) -> some View {
         Section("Expenditure") {
             if let est = snap.estimate {
-                LabeledContent("Measured TDEE", value: "\(Units.number(est.tdee, maxFraction: 0)) kcal")
-                LabeledContent("Confidence", value: "\(est.confidence.label) · \(est.loggedDays) days")
-                LabeledContent("Trend change", value: "\(Units.weight(est.weightChangeKg, metric: settings.usesMetric)) over \(est.spanDays) days")
+                LabeledContent("Measured TDEE") { Text("\(Units.number(est.tdee, maxFraction: 0)) kcal").monospacedDigit() }
+                LabeledContent("Confidence") { Text("\(est.confidence.label) · \(est.loggedDays) days").monospacedDigit() }
+                LabeledContent("Trend change") { Text("\(Units.weight(est.weightChangeKg, metric: settings.usesMetric)) over \(est.spanDays) days").monospacedDigit() }
             } else {
                 Text("Log intake and weight for at least 4 days to measure expenditure.")
                     .foregroundStyle(.secondary)
             }
             if let rate = snap.trendRatePercentPerWeek {
-                LabeledContent("Trend rate", value: "\(Units.percent(rate))/week vs goal \(Units.percent(settings.goalRatePercentPerWeek))")
+                LabeledContent("Trend rate") { Text("\(Units.percent(rate))/week vs goal \(Units.percent(settings.goalRatePercentPerWeek))").monospacedDigit() }
             }
             if let adj = snap.suggestedAdjustment {
                 VStack(alignment: .leading, spacing: 6) {
@@ -75,7 +74,7 @@ struct NutritionView: View {
                     Button("Apply and start next week") {
                         settings.cumulativeAdjustmentKcal += Double(adj.kcal)
                         settings.lastAdjustmentDate = .now
-                        try? context.save()
+                        context.saveOrLog()
                     }
                     .buttonStyle(.bordered)
                 }
@@ -86,8 +85,11 @@ struct NutritionView: View {
     private func bodyweightSection(_ snap: NutritionSnapshot, settings: UserSettings) -> some View {
         Section("Bodyweight") {
             HStack {
-                TextField(settings.usesMetric ? "kg" : "lb", text: $weightText)
+                TextField("This morning's weight", text: $weightText)
                     .keyboardType(.decimalPad)
+                    .font(.body.monospacedDigit())
+                    .focused($weightFieldFocused)
+                Text(settings.usesMetric ? "kg" : "lb").foregroundStyle(.secondary)
                 Button("Log today") { logWeight(metric: settings.usesMetric) }
                     .disabled(Double(weightText.replacingOccurrences(of: ",", with: ".")) == nil)
             }
@@ -104,10 +106,12 @@ struct NutritionView: View {
                 }
                 .chartYScale(domain: .automatic(includesZero: false))
                 .frame(height: 200)
-                LabeledContent("Trend weight", value: Units.weight(snap.latestWeightKg, metric: settings.usesMetric))
+                LabeledContent("Trend weight") { Text(Units.weight(snap.latestWeightKg, metric: settings.usesMetric)).monospacedDigit() }
             } else {
-                Text("Weigh in each morning. The line is the trend; dots are the scale.")
-                    .font(.caption).foregroundStyle(.secondary)
+                EmptyState("No trend yet", systemImage: "scalemass",
+                           description: "Weigh in each morning. After two days the line shows your trend and the dots show the scale.") {
+                    Button("Log weight") { weightFieldFocused = true }
+                }
             }
         }
     }
@@ -116,14 +120,17 @@ struct NutritionView: View {
         Section("Logged today") {
             let today = intake.filter { Calendar.current.isDateInToday($0.date) }
             if today.isEmpty {
-                Text("Nothing yet.").foregroundStyle(.secondary)
+                EmptyState("Nothing logged today", systemImage: "fork.knife",
+                           description: "Log what you eat and the target above fills in.") {
+                    Button("Add food") { showAddFood = true }
+                }
             }
             ForEach(today, id: \.persistentModelID) { entry in
                 HStack {
                     VStack(alignment: .leading) {
                         Text(entry.name)
                         Text("\(entry.grams.map { "\(Units.number($0, maxFraction: 0)) g · " } ?? "")P \(Units.number(entry.protein, maxFraction: 0)) · C \(Units.number(entry.carbs, maxFraction: 0)) · F \(Units.number(entry.fat, maxFraction: 0))")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     }
                     Spacer()
                     Text("\(Units.number(entry.kcal, maxFraction: 0)) kcal").monospacedDigit()
@@ -148,7 +155,7 @@ struct NutritionView: View {
         } else {
             context.insert(BodyweightEntry(date: today, kg: kg))
         }
-        try? context.save()
+        context.saveOrLog()
         weightText = ""
     }
 }
@@ -199,7 +206,7 @@ struct AddIntakeView: View {
         let p = protein ?? 0, c = carbs ?? 0, f = fat ?? 0
         let energy = kcal ?? (4 * p + 4 * c + 9 * f)
         context.insert(IntakeEntry(name: name.isEmpty ? "Food" : name, kcal: energy, protein: p, carbs: c, fat: f, fibre: fibre ?? 0))
-        try? context.save()
+        context.saveOrLog()
         dismiss()
     }
 }

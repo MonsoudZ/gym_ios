@@ -42,8 +42,10 @@ final class UserSettings {
     var goalRatePercentPerWeek: Double
     var proteinPerKgOverride: Double?
     var fatFloorPerKg: Double
-    var templateName: String
     var activeProgramID: UUID?
+    /// The built-in split chosen on installs that predate programs. `Seeder.ensurePrograms` reads
+    /// it once to pick the active program, then clears it.
+    @Attribute(originalName: "templateName") var legacyTemplateName: String?
 
     // Profile, used only for the provisional Mifflin-St Jeor estimate.
     var heightCm: Double
@@ -63,8 +65,8 @@ final class UserSettings {
         goalRatePercentPerWeek = 0
         proteinPerKgOverride = nil
         fatFloorPerKg = NutritionEngine.defaultFatFloorPerKg
-        templateName = ProgramTemplates.upperLower.name
         activeProgramID = nil
+        legacyTemplateName = nil
         heightCm = Units.cm(feet: 5, inches: 10)
         ageYears = 30
         isMale = true
@@ -78,6 +80,6 @@ final class UserSettings {
     var proteinPerKg: Double { proteinPerKgOverride ?? goal.proteinPerKg }
 
     func activeProgram(in programs: [Program]) -> Program? {
-        programs.first { $0.id == activeProgramID } ?? programs.first { $0.name == templateName } ?? programs.first
+        programs.first { $0.id == activeProgramID } ?? programs.first
     }
 }
