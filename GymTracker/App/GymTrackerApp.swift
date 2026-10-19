@@ -8,7 +8,7 @@ struct GymTrackerApp: App {
     init() {
         let schema = Schema([
             Exercise.self, WorkoutSession.self, SetEntry.self,
-            BodyweightEntry.self, IntakeEntry.self, UserSettings.self,
+            BodyweightEntry.self, IntakeEntry.self, UserSettings.self, FoodItem.self,
         ])
         do {
             container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema)])

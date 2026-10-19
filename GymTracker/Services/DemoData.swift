@@ -23,14 +23,14 @@ enum DemoData {
         settings.templateName = ProgramTemplates.upperLower.name
         settings.goal = .cut
         settings.goalRatePercentPerWeek = -0.5
-        settings.assumedWeightKg = 84
+        settings.assumedWeightKg = Units.kg(fromLb: 185)
 
         // Bodyweight and intake, one entry per day.
         for day in 0...56 {
             let date = cal.date(byAdding: .day, value: day, to: start)!
-            let trend = 84 - 0.35 * Double(day) / 7
-            let noise = Double.random(in: -0.7...0.7, using: &rng)
-            context.insert(BodyweightEntry(date: date, kg: (trend + noise).rounded(toPlaces: 1)))
+            let trendLb = 185 - 0.75 * Double(day) / 7
+            let noise = Double.random(in: -1.5...1.5, using: &rng)
+            context.insert(BodyweightEntry(date: date, kg: Units.kg(fromLb: (trendLb + noise).rounded(toPlaces: 1))))
 
             if day < 56, Double.random(in: 0...1, using: &rng) > 0.08 {
                 let kcal = Double.random(in: 2100...2500, using: &rng).rounded()
@@ -43,13 +43,15 @@ enum DemoData {
         }
 
         // Workouts: four per week on the Upper / Lower rotation.
-        var loads: [String: Double] = [
-            "Barbell Bench Press": 70, "Barbell Row": 65, "Overhead Press": 42.5, "Lat Pulldown": 60,
-            "Barbell Curl": 25, "Triceps Pushdown": 30, "Back Squat": 100, "Romanian Deadlift": 90,
-            "Leg Press": 180, "Leg Curl": 45, "Standing Calf Raise": 80, "Incline Dumbbell Press": 26,
-            "Seated Cable Row": 60, "Dumbbell Shoulder Press": 20, "Lateral Raise": 10, "Face Pull": 25,
-            "Deadlift": 130, "Hip Thrust": 100, "Leg Extension": 50,
+        // Starting loads in pounds; stored in kg like everything else.
+        let loadsLb: [String: Double] = [
+            "Barbell Bench Press": 155, "Barbell Row": 145, "Overhead Press": 95, "Lat Pulldown": 130,
+            "Barbell Curl": 55, "Triceps Pushdown": 65, "Back Squat": 225, "Romanian Deadlift": 200,
+            "Leg Press": 400, "Leg Curl": 100, "Standing Calf Raise": 180, "Incline Dumbbell Press": 60,
+            "Seated Cable Row": 130, "Dumbbell Shoulder Press": 45, "Lateral Raise": 20, "Face Pull": 55,
+            "Deadlift": 285, "Hip Thrust": 225, "Leg Extension": 110,
         ]
+        var loads = loadsLb.mapValues { Units.kg(fromLb: $0) }
         let template = ProgramTemplates.upperLower
         var dayIndex = 0
         var sessionCount = 0
@@ -67,7 +69,7 @@ enum DemoData {
 
                 for (order, spec) in day.exercises.enumerated() {
                     guard let exercise = exercises.first(where: { $0.name == spec.name }) else { continue }
-                    let weight = loads[spec.name] ?? 20
+                    let weight = loads[spec.name] ?? Units.kg(fromLb: 45)
                     // Bench holds for its last three Upper A sessions (one per week) so the Today screen has a deload to show.
                     let forceHold = spec.name == "Barbell Bench Press" && week >= 5
                     let roll = Double.random(in: 0...1, using: &rng)
@@ -86,7 +88,7 @@ enum DemoData {
                         set.session = session
                         context.insert(set)
                     }
-                    if outcome == .progressed { loads[spec.name] = weight + spec.increment }
+                    if outcome == .progressed { loads[spec.name] = weight + exercise.increment }
                 }
             }
         }

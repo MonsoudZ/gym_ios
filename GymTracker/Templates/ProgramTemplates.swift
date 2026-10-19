@@ -55,6 +55,20 @@ nonisolated enum ExerciseLibrary {
     static func spec(_ name: String) -> ExerciseSpec? {
         all.first { $0.name == name }
     }
+
+    /// Library increments are written in kg. In pounds the equivalent plate step is used instead,
+    /// stored as its exact kg value so prescriptions round to whole pounds.
+    static func increment(forKg kg: Double, metric: Bool) -> Double {
+        guard !metric else { return kg }
+        let lb: Double
+        switch kg {
+        case ..<1.5: lb = 2.5      // 1 or 1.25 kg: small dumbbells, cable stacks
+        case ..<3: lb = 5          // 2 or 2.5 kg: upper-body barbell, dumbbells
+        case ..<7.5: lb = 10       // 5 kg: lower-body barbell
+        default: lb = 20           // 10 kg: leg press
+        }
+        return Units.kg(fromLb: lb)
+    }
 }
 
 nonisolated enum ProgramTemplates {

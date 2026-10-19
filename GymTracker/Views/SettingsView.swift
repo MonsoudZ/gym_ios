@@ -58,15 +58,27 @@ private struct SettingsForm: View {
             }
 
             Section {
-                Toggle("Use kilograms", isOn: $settings.usesMetric)
+                Picker("Units", selection: $settings.usesMetric) {
+                    Text("Pounds, feet and inches").tag(false)
+                    Text("Kilograms and centimetres").tag(true)
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+                .onChange(of: settings.usesMetric) { _, metric in
+                    Seeder.applyUnits(metric: metric, context: context)
+                }
             } header: {
                 Text("Units")
             } footer: {
-                Text("Everything is stored in kilograms. This only changes what you see.")
+                Text("Weights are stored in kilograms and shown in your unit. Lift increments follow the unit: 5 lb and 10 lb plates, or 2.5 kg and 5 kg.")
             }
 
             Section {
-                Stepper("Height: \(Units.number(settings.heightCm, maxFraction: 0)) cm", value: $settings.heightCm, in: 120...230, step: 1)
+                if settings.usesMetric {
+                    Stepper("Height: \(Units.number(settings.heightCm, maxFraction: 0)) cm", value: $settings.heightCm, in: 120...230, step: 1)
+                } else {
+                    HeightPickerRow(heightCm: $settings.heightCm)
+                }
                 Stepper("Age: \(settings.ageYears)", value: $settings.ageYears, in: 14...100)
                 Picker("Sex (for the formula)", selection: $settings.isMale) {
                     Text("Male").tag(true)
@@ -78,7 +90,14 @@ private struct SettingsForm: View {
                     Text("Moderate").tag(1.7)
                     Text("High").tag(1.9)
                 }
-                Stepper("Starting weight: \(Units.number(settings.assumedWeightKg)) kg", value: $settings.assumedWeightKg, in: 35...250, step: 0.5)
+                if settings.usesMetric {
+                    Stepper("Starting weight: \(Units.number(settings.assumedWeightKg)) kg", value: $settings.assumedWeightKg, in: 35...250, step: 0.5)
+                } else {
+                    Stepper("Starting weight: \(Units.number(Units.lb(fromKg: settings.assumedWeightKg), maxFraction: 0)) lb",
+                            value: Binding(get: { Units.lb(fromKg: settings.assumedWeightKg).rounded() },
+                                           set: { settings.assumedWeightKg = Units.kg(fromLb: $0) }),
+                            in: 80...550, step: 1)
+                }
             } header: {
                 Text("Profile")
             } footer: {
@@ -94,6 +113,34 @@ private struct SettingsForm: View {
         }
         .confirmationDialog("Delete all workouts, weights and food?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Delete everything", role: .destructive) { Seeder.resetAll(context: context) }
+        }
+    }
+}
+
+private struct HeightPickerRow: View {
+    @Binding var heightCm: Double
+
+    private var feet: Binding<Int> {
+        Binding(get: { Units.feetAndInches(fromCm: heightCm).feet },
+                set: { heightCm = Units.cm(feet: $0, inches: Units.feetAndInches(fromCm: heightCm).inches) })
+    }
+    private var inches: Binding<Int> {
+        Binding(get: { Units.feetAndInches(fromCm: heightCm).inches },
+                set: { heightCm = Units.cm(feet: Units.feetAndInches(fromCm: heightCm).feet, inches: $0) })
+    }
+
+    var body: some View {
+        HStack {
+            Text("Height")
+            Spacer()
+            Picker("Feet", selection: feet) {
+                ForEach(4...7, id: \.self) { Text("\($0) ft").tag($0) }
+            }
+            .labelsHidden()
+            Picker("Inches", selection: inches) {
+                ForEach(0...11, id: \.self) { Text("\($0) in").tag($0) }
+            }
+            .labelsHidden()
         }
     }
 }

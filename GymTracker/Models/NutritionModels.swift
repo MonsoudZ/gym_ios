@@ -21,8 +21,9 @@ final class IntakeEntry {
     var carbs: Double
     var fat: Double
     var fibre: Double
+    var grams: Double?
 
-    init(date: Date = .now, name: String, kcal: Double, protein: Double = 0, carbs: Double = 0, fat: Double = 0, fibre: Double = 0) {
+    init(date: Date = .now, name: String, kcal: Double, protein: Double = 0, carbs: Double = 0, fat: Double = 0, fibre: Double = 0, grams: Double? = nil) {
         self.date = date
         self.name = name
         self.kcal = kcal
@@ -30,6 +31,7 @@ final class IntakeEntry {
         self.carbs = carbs
         self.fat = fat
         self.fibre = fibre
+        self.grams = grams
     }
 }
 
@@ -55,17 +57,17 @@ final class UserSettings {
     var createdAt: Date
 
     init() {
-        usesMetric = true
+        usesMetric = false
         goal = .maintain
         goalRatePercentPerWeek = 0
         proteinPerKgOverride = nil
         fatFloorPerKg = NutritionEngine.defaultFatFloorPerKg
         templateName = ProgramTemplates.upperLower.name
-        heightCm = 175
+        heightCm = Units.cm(feet: 5, inches: 10)
         ageYears = 30
         isMale = true
         activityFactor = 1.5
-        assumedWeightKg = 80
+        assumedWeightKg = Units.kg(fromLb: 180)
         cumulativeAdjustmentKcal = 0
         lastAdjustmentDate = nil
         createdAt = .now

@@ -136,14 +136,15 @@ nonisolated enum ProgressionEngine {
                              config: ExerciseConfig,
                              muscles: [MuscleWeight] = [],
                              readiness: Readiness? = nil,
-                             weeklySetsForPrimaryMuscle: Double? = nil) -> Prescription {
+                             weeklySetsForPrimaryMuscle: Double? = nil,
+                             formatWeight: (Double) -> String = { "\(format($0)) kg" }) -> Prescription {
         let low = config.repRangeLow, high = config.repRangeHigh
         var result = Prescription(weight: 0, repRangeLow: low, repRangeHigh: high, setCount: config.setCount, reason: "")
 
         guard let last = history.last, let lastWeight = topWorkingWeight(last.sets) else {
             if let start = config.startingWeight, start > 0 {
                 result.weight = start
-                result.reason = "First session. Start at \(format(start)) kg and aim for RPE 7."
+                result.reason = "First session. Start at \(formatWeight(start)) and aim for RPE 7."
             } else {
                 result.reason = "No history yet. Pick a weight you can lift for \(high) reps at RPE 7."
                 result.needsStartingWeight = true
@@ -170,13 +171,13 @@ nonisolated enum ProgressionEngine {
             } else {
                 result.stallAction = .deload
                 result.weight = round(lastWeight * deloadFactor, toIncrement: config.increment)
-                result.reason = "Stalled for \(stall.streak) sessions. Deload 10% to \(format(result.weight)) kg and climb back."
+                result.reason = "Stalled for \(stall.streak) sessions. Deload 10% to \(formatWeight(result.weight)) and climb back."
             }
         } else {
             switch lastVerdict {
             case .progressed:
                 result.weight = lastWeight + config.increment
-                result.reason = "Hit \(high) reps on every set at RPE \(format(config.rpeCap)) or below. Add \(format(config.increment)) kg."
+                result.reason = "Hit \(high) reps on every set at RPE \(format(config.rpeCap)) or below. Add \(formatWeight(config.increment))."
             case .held:
                 result.weight = lastWeight
                 result.reason = "Same weight. Chase \(high) reps on every set."
@@ -197,7 +198,7 @@ nonisolated enum ProgressionEngine {
         return result
     }
 
-    private static func format(_ value: Double) -> String {
+    static func format(_ value: Double) -> String {
         value.formatted(.number.precision(.fractionLength(0...2)))
     }
 }

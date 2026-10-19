@@ -30,8 +30,8 @@ struct TodayView: View {
     }
 
     private var plan: [PlannedExercise] {
-        guard let day else { return [] }
-        return PlanService.plan(day: day, exercises: exercises, completedSessions: completed, readiness: readiness)
+        guard let day, let settings else { return [] }
+        return PlanService.plan(day: day, exercises: exercises, completedSessions: completed, readiness: readiness, metric: settings.usesMetric)
     }
 
     private var headline: PlannedExercise? {

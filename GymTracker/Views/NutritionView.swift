@@ -30,7 +30,7 @@ struct NutritionView: View {
                     Button("Add food", systemImage: "plus") { showAddFood = true }
                 }
             }
-            .sheet(isPresented: $showAddFood) { AddIntakeView() }
+            .sheet(isPresented: $showAddFood) { FoodSearchView() }
         }
     }
 
@@ -122,7 +122,7 @@ struct NutritionView: View {
                 HStack {
                     VStack(alignment: .leading) {
                         Text(entry.name)
-                        Text("P \(Units.number(entry.protein, maxFraction: 0)) · C \(Units.number(entry.carbs, maxFraction: 0)) · F \(Units.number(entry.fat, maxFraction: 0))")
+                        Text("\(entry.grams.map { "\(Units.number($0, maxFraction: 0)) g · " } ?? "")P \(Units.number(entry.protein, maxFraction: 0)) · C \(Units.number(entry.carbs, maxFraction: 0)) · F \(Units.number(entry.fat, maxFraction: 0))")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()

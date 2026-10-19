@@ -35,21 +35,22 @@ enum PlanService {
         return VolumeTracker.weeklyVolume(sets)
     }
 
-    static func prescription(for exercise: Exercise, readiness: Readiness?, weeklyVolume: [Muscle: Double]) -> Prescription {
+    static func prescription(for exercise: Exercise, readiness: Readiness?, weeklyVolume: [Muscle: Double], metric: Bool) -> Prescription {
         let primaryVolume = exercise.primaryMuscle.flatMap { weeklyVolume[$0] }
         return ProgressionEngine.prescription(history: exercise.sessionResults(),
                                               config: exercise.config,
                                               muscles: exercise.muscles,
                                               readiness: readiness,
-                                              weeklySetsForPrimaryMuscle: primaryVolume)
+                                              weeklySetsForPrimaryMuscle: primaryVolume,
+                                              formatWeight: { Units.weight($0, metric: metric) })
     }
 
-    static func plan(day: TemplateDay, exercises: [Exercise], completedSessions: [WorkoutSession], readiness: Readiness?) -> [PlannedExercise] {
+    static func plan(day: TemplateDay, exercises: [Exercise], completedSessions: [WorkoutSession], readiness: Readiness?, metric: Bool) -> [PlannedExercise] {
         let volume = weeklyVolume(completedSessions: completedSessions)
         return day.exerciseNames.compactMap { name in
             guard let exercise = exercises.first(where: { $0.name == name }) else { return nil }
             return PlannedExercise(exercise: exercise,
-                                   prescription: prescription(for: exercise, readiness: readiness, weeklyVolume: volume))
+                                   prescription: prescription(for: exercise, readiness: readiness, weeklyVolume: volume, metric: metric))
         }
     }
 }
