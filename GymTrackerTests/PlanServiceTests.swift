@@ -149,6 +149,61 @@ final class PlanServiceTests: XCTestCase {
         XCTAssertEqual(session.loggedSetCount, 3)
     }
 
+    // MARK: Mid-workout changes
+
+    @MainActor
+    func testAddSetAppendsAtTheLastWorkingWeight() throws {
+        let context = try makeContext()
+        let bench = Exercise(spec: ExerciseLibrary.spec("Barbell Bench Press")!)
+        context.insert(bench)
+        let session = WorkoutSession(templateDayName: "Upper A")
+        context.insert(session)
+        session.addExercise(bench, weight: 80, in: context)
+        XCTAssertEqual(session.sets(for: bench).count, bench.setCount)
+
+        let added = session.addSet(for: bench, in: context)
+        XCTAssertEqual(added.setNumber, bench.setCount)
+        XCTAssertEqual(added.weight, 80)
+        XCTAssertFalse(added.isWarmup)
+        XCTAssertEqual(session.sets(for: bench).last?.persistentModelID, added.persistentModelID)
+    }
+
+    @MainActor
+    func testWarmupsGoFirstAndNeverCountAsVolume() throws {
+        let context = try makeContext()
+        let bench = Exercise(spec: ExerciseLibrary.spec("Barbell Bench Press")!)
+        context.insert(bench)
+        let session = WorkoutSession(templateDayName: "Upper A")
+        context.insert(session)
+        session.addExercise(bench, weight: 100, in: context)
+        let warmups = session.addWarmups(for: bench, in: context)
+        XCTAssertEqual(warmups.map(\.weight), [50, 70, 90])
+
+        let ordered = session.sets(for: bench)
+        XCTAssertEqual(ordered.prefix(3).map(\.isWarmup), [true, true, true])
+        XCTAssertEqual(ordered.dropFirst(3).map(\.setNumber), [3, 4, 5])
+
+        session.isCompleted = true
+        for set in ordered where !set.isWarmup { set.reps = 8 }
+        context.saveOrLog()
+        let volume = PlanService.weeklyVolume(completedSessions: [session], asOf: .now.addingTimeInterval(60))
+        XCTAssertEqual(volume[.chest], 3)   // warm-ups excluded
+        XCTAssertEqual(bench.sessionResults().last?.sets.filter { !$0.isWarmup }.count, 3)
+    }
+
+    @MainActor
+    func testAddExerciseIsIgnoredWhenAlreadyInSession() throws {
+        let context = try makeContext()
+        let bench = Exercise(spec: ExerciseLibrary.spec("Barbell Bench Press")!)
+        context.insert(bench)
+        let session = WorkoutSession(templateDayName: "Upper A")
+        context.insert(session)
+        session.addExercise(bench, weight: 80, in: context)
+        session.addExercise(bench, weight: 90, in: context)
+        XCTAssertEqual(session.sets(for: bench).count, bench.setCount)
+        XCTAssertEqual(session.orderedExercises.count, 1)
+    }
+
     // MARK: Migration
 
     @MainActor

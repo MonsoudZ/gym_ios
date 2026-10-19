@@ -18,24 +18,59 @@ struct WorkoutView: View {
     @State private var restsFinished = 0
     @State private var confirmPartialFinish = false
     @State private var confirmDiscard = false
+    @State private var showAddExercise = false
 
     private var metric: Bool { settingsList.first?.usesMetric ?? true }
 
     var body: some View {
         List {
             ForEach(session.orderedExercises, id: \.persistentModelID) { exercise in
+                let exerciseSets = session.sets(for: exercise)
                 Section {
                     lastTimeRow(exercise)
-                    ForEach(session.sets(for: exercise), id: \.persistentModelID) { set in
-                        SetRow(set: set, unit: metric ? "kg" : "lb", metric: metric) {
-                            startRest(after: exercise)
+                    ForEach(Array(exerciseSets.enumerated()), id: \.element.persistentModelID) { index, set in
+                        // Working sets are numbered among themselves, so warm-ups do not shift "set 1".
+                        let workingNumber = exerciseSets.prefix(index + 1).filter { !$0.isWarmup }.count
+                        SetRow(set: set, displayNumber: workingNumber, unit: metric ? "kg" : "lb", metric: metric) {
+                            if !set.isWarmup { startRest(after: exercise) }
+                        }
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button(set.isWarmup ? "Working" : "Warm-up", systemImage: set.isWarmup ? "flame.fill" : "flame") {
+                                set.isWarmup.toggle()
+                                context.saveOrLog()
+                            }
+                            .tint(.orange)
                         }
                     }
+                    .onDelete { offsets in
+                        for index in offsets { context.delete(exerciseSets[index]) }
+                        context.saveOrLog()
+                    }
+                    HStack {
+                        if !exerciseSets.contains(where: \.isWarmup),
+                           let working = exerciseSets.first(where: { !$0.isWarmup }),
+                           !WarmupRule.ramp(workingWeight: working.weight, increment: exercise.increment).isEmpty {
+                            Button("Warm-up sets", systemImage: "flame") {
+                                session.addWarmups(for: exercise, in: context)
+                                context.saveOrLog()
+                            }
+                        }
+                        Spacer()
+                        Button("Add set", systemImage: "plus") {
+                            session.addSet(for: exercise, in: context)
+                            context.saveOrLog()
+                        }
+                    }
+                    .font(.subheadline)
+                    .buttonStyle(.borderless)
                 } header: {
                     Text(exercise.name)
                 } footer: {
-                    Text("Target \(exercise.repRangeLow)–\(exercise.repRangeHigh) reps, RPE \(Units.number(exercise.rpeCap)) or below. Rest \(RestRule.label(exercise.restSeconds)).")
+                    Text("Target \(exercise.repRangeLow)–\(exercise.repRangeHigh) reps, RPE \(Units.number(exercise.rpeCap)) or below. Rest \(RestRule.label(exercise.restSeconds)). Swipe a set right to mark it a warm-up; warm-ups never count as volume.")
                 }
+            }
+            Section {
+                Button("Add exercise", systemImage: "plus.circle") { showAddExercise = true }
             }
         }
         .navigationTitle(session.templateDayName)
@@ -67,6 +102,9 @@ struct WorkoutView: View {
         }
         .sensoryFeedback(.success, trigger: restsFinished)
         .animation(.snappy, value: rest)
+        .sheet(isPresented: $showAddExercise) {
+            SessionExercisePicker(session: session, metric: metric)
+        }
     }
 
     @ViewBuilder private func lastTimeRow(_ exercise: Exercise) -> some View {
@@ -101,6 +139,44 @@ struct WorkoutView: View {
         }
         session.isCompleted = !session.sets.isEmpty
         if session.sets.isEmpty { context.delete(session) }
+        context.saveOrLog()
+        dismiss()
+    }
+}
+
+/// Adds an exercise that was not planned, with the weight the engine would have prescribed.
+private struct SessionExercisePicker: View {
+    var session: WorkoutSession
+    var metric: Bool
+
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query(sort: \Exercise.name) private var exercises: [Exercise]
+    @State private var query = ""
+
+    private var candidates: [Exercise] {
+        let inSession = Set(session.orderedExercises.map(\.id))
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        return exercises.filter { !inSession.contains($0.id) && (q.isEmpty || $0.name.lowercased().contains(q)
+            || $0.muscles.contains { $0.muscle.displayName.lowercased().contains(q) }) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List(candidates, id: \.persistentModelID) { exercise in
+                Button { add(exercise) } label: { ExerciseSummaryRow(exercise: exercise, metric: metric) }
+                    .foregroundStyle(.primary)
+            }
+            .searchable(text: $query, prompt: "Search by name or muscle")
+            .navigationTitle("Add exercise")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+        }
+    }
+
+    private func add(_ exercise: Exercise) {
+        let prescription = PlanService.prescription(for: exercise, readiness: nil, weeklyVolume: [:], metric: metric)
+        session.addExercise(exercise, weight: prescription.weight, in: context)
         context.saveOrLog()
         dismiss()
     }
@@ -161,6 +237,8 @@ private struct RestTimerBar: View {
 
 struct SetRow: View {
     @Bindable var set: SetEntry
+    /// Position among the exercise's working sets, 1-based.
+    var displayNumber: Int
     var unit: String
     var metric: Bool
     /// Called when the set is ticked done, not when it is un-ticked.
@@ -172,9 +250,10 @@ struct SetRow: View {
     private var isDone: Bool { self.set.completedAt != nil }
     private var canComplete: Bool { self.set.reps > 0 }
 
-    private var displayWeight: Binding<Double> {
-        Binding(get: { metric ? set.weight : set.weight * Units.lbPerKg },
-                set: { set.weight = metric ? $0 : $0 / Units.lbPerKg })
+    /// Zero means "no weight chosen yet" (an exercise with no history), shown as an empty field.
+    private var displayWeight: Binding<Double?> {
+        Binding(get: { set.weight > 0 ? (metric ? set.weight : set.weight * Units.lbPerKg) : nil },
+                set: { set.weight = max(0, $0.map { metric ? $0 : $0 / Units.lbPerKg } ?? 0) })
     }
 
     /// Zero means "not logged yet", shown as an empty field so typing does not append to a 0.
@@ -218,9 +297,16 @@ struct SetRow: View {
     }
 
     private var setNumber: some View {
-        Text("\(set.setNumber + 1)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-            .frame(minWidth: 16)
-            .accessibilityLabel("Set \(set.setNumber + 1)")
+        Group {
+            if set.isWarmup {
+                Image(systemName: "flame").foregroundStyle(.orange)
+                    .accessibilityLabel("Warm-up set")
+            } else {
+                Text("\(displayNumber)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    .accessibilityLabel("Set \(displayNumber)")
+            }
+        }
+        .frame(minWidth: 16)
     }
 
     /// At accessibility sizes the trailing unit words no longer fit beside the fields; the
@@ -273,8 +359,8 @@ struct SetRow: View {
         }
         .buttonStyle(.plain)
         .disabled(!isDone && !canComplete)
-        .accessibilityLabel(isDone ? "Set \(set.setNumber + 1) done" : "Mark set \(set.setNumber + 1) done")
-        .accessibilityHint(isDone ? "Double tap to un-mark" : canComplete ? "Starts the rest timer" : "Enter reps first")
+        .accessibilityLabel(isDone ? "Set \(displayNumber) done" : "Mark set \(displayNumber) done")
+        .accessibilityHint(isDone ? "Double tap to un-mark" : !canComplete ? "Enter reps first" : set.isWarmup ? "Warm-up, no rest timer" : "Starts the rest timer")
     }
 
     private func toggleDone() {

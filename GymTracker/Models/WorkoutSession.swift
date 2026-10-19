@@ -59,6 +59,56 @@ final class WorkoutSession {
         sets.filter { $0.exercise?.persistentModelID == exercise.persistentModelID }
             .sorted { $0.setNumber < $1.setNumber }
     }
+
+    private func exerciseOrder(of exercise: Exercise) -> Int {
+        sets(for: exercise).first?.exerciseOrder ?? ((sets.map(\.exerciseOrder).max() ?? -1) + 1)
+    }
+
+    /// Appends one more working set to an exercise already in the session, at the last set's weight.
+    @discardableResult
+    func addSet(for exercise: Exercise, in context: ModelContext) -> SetEntry {
+        let existing = sets(for: exercise)
+        let weight = existing.last(where: { !$0.isWarmup })?.weight ?? existing.last?.weight ?? 0
+        let set = SetEntry(exerciseOrder: exerciseOrder(of: exercise),
+                           setNumber: (existing.map(\.setNumber).max() ?? -1) + 1, weight: weight)
+        set.exercise = exercise
+        set.session = self
+        context.insert(set)
+        sets.append(set)
+        return set
+    }
+
+    /// Inserts ramp sets before the exercise's working sets, renumbering so they sort first.
+    @discardableResult
+    func addWarmups(for exercise: Exercise, in context: ModelContext) -> [SetEntry] {
+        let existing = sets(for: exercise)
+        guard let working = existing.first(where: { !$0.isWarmup }) else { return [] }
+        let ramp = WarmupRule.ramp(workingWeight: working.weight, increment: exercise.increment)
+        guard !ramp.isEmpty else { return [] }
+        for set in existing { set.setNumber += ramp.count }
+        let order = exerciseOrder(of: exercise)
+        return ramp.enumerated().map { index, step in
+            let set = SetEntry(exerciseOrder: order, setNumber: index, weight: step.weight, reps: step.reps, isWarmup: true)
+            set.exercise = exercise
+            set.session = self
+            context.insert(set)
+            sets.append(set)
+            return set
+        }
+    }
+
+    /// Adds an exercise that was not in the plan, with its usual set count at `weight`.
+    func addExercise(_ exercise: Exercise, weight: Double, in context: ModelContext) {
+        guard sets(for: exercise).isEmpty else { return }
+        let order = exerciseOrder(of: exercise)
+        for number in 0..<max(1, exercise.setCount) {
+            let set = SetEntry(exerciseOrder: order, setNumber: number, weight: weight)
+            set.exercise = exercise
+            set.session = self
+            context.insert(set)
+            sets.append(set)
+        }
+    }
 }
 
 @Model

@@ -41,7 +41,11 @@ mixed, the spec says so, and the rule is conservative.
 ### 2.2 Data captured per set
 
 - Exercise, weight, reps, RPE (6–10 in 0.5 steps). RPE is required on working sets.
-- Set type: warm-up or working. Only working sets count toward volume.
+- Set type: warm-up or working. Only working sets count toward volume. A "Warm-up sets" button
+  ramps to the working weight at 50 / 70 / 90 % for 8 / 5 / 2 reps (one 60 % set under 40 kg,
+  none under an empty bar). The ladder is coaching convention, not a study result. Any set can
+  be flipped between warm-up and working.
+- Sets and exercises can be added during the workout; the plan is a starting point, not a cage.
 - Each exercise maps to one or more muscles with a weighting (bench: chest 1.0, triceps 0.5,
   front delt 0.5). Weekly volume is the weighted sum of working sets.
 
@@ -189,7 +193,8 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
 - Last session's result for the same set, small, underneath.
 - RPE picker inline. No menus.
 - Ticking a set done dims the row and starts the exercise's rest countdown in a bar at the
-  bottom: time left, +30 s, skip. A haptic marks the end of the rest.
+  bottom: time left, +30 s, skip. A haptic marks the end of the rest. Warm-ups start no timer.
+- "Add set" under each exercise, "Add exercise" at the end, swipe right to mark a warm-up.
 
 **Progress screens**
 
