@@ -16,13 +16,24 @@ targets:
     platform: iOS
     sources:
       - path: GymTracker
+      - path: Shared
+    dependencies:
+      - target: GymTrackerWidgets
+    entitlements:
+      path: GymTracker/GymTracker.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.monsoudzanaty.GymTracker]
     info:
       path: GymTracker/Info.plist
       properties:
         CFBundleDisplayName: GymTracker
         UILaunchScreen: {}
         NSCameraUsageDescription: Scan food barcodes to look them up in Open Food Facts.
+        NSSupportsLiveActivities: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.monsoudzanaty.GymTracker
+            CFBundleURLSchemes: [gymtracker]
     settings:
       base:
         TARGETED_DEVICE_FAMILY: "1"
@@ -30,6 +41,30 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
         PRODUCT_BUNDLE_IDENTIFIER: com.monsoudzanaty.GymTracker
+  GymTrackerWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: GymTrackerWidgets
+      - path: Shared
+    entitlements:
+      path: GymTrackerWidgets/GymTrackerWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.monsoudzanaty.GymTracker]
+    info:
+      path: GymTrackerWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: GymTracker Widgets
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        PRODUCT_BUNDLE_IDENTIFIER: com.monsoudzanaty.GymTracker.Widgets
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) WIDGET_EXTENSION"
+        SKIP_INSTALL: "YES"
   GymTrackerTests:
     type: bundle.unit-test
     platform: iOS
@@ -47,6 +82,7 @@ schemes:
     build:
       targets:
         GymTracker: all
+        GymTrackerWidgets: all
         GymTrackerTests: [test]
     run:
       config: Debug

@@ -22,8 +22,19 @@ struct ContentView: View {
         }
         .environment(\.switchTab) { tab = $0 }
         // Re-plans the morning reminders each time the app opens, so today's drops out once logged.
+        // The widgets are refreshed on every save; this catches the day changing while closed.
         .task(id: scenePhase) {
-            if scenePhase == .active { LogReminders.refresh(context: context) }
+            if scenePhase == .active {
+                LogReminders.refresh(context: context)
+                WidgetBridge.refresh(context: context)
+            }
+        }
+        .onOpenURL { url in
+            switch url.host() {
+            case "nutrition": tab = .nutrition
+            case "today": tab = .today
+            default: break
+            }
         }
         .sheet(isPresented: needsOnboarding) {
             if let settings = settingsList.first {

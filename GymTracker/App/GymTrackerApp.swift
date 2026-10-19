@@ -17,6 +17,7 @@ struct GymTrackerApp: App {
             fatalError("Could not create model container: \(error)")
         }
         Seeder.prepare(context: container.mainContext)
+        WidgetBridge.observe(container)
     }
 
     var body: some Scene {

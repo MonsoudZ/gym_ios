@@ -7,14 +7,9 @@ struct WorkoutView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var settingsList: [UserSettings]
 
-    /// The rest that is running, started when a set is ticked done.
-    private struct Rest: Equatable {
-        var endsAt: Date
-        var seconds: Int
-        var exerciseName: String
-    }
-
-    @State private var rest: Rest?
+    /// The rest that is running, started when a set is ticked done. Shared with the Live
+    /// Activity, whose buttons act on it from outside this screen.
+    private let timer = RestTimer.shared
     @State private var restsFinished = 0
     @State private var confirmPartialFinish = false
     @State private var confirmDiscard = false
@@ -98,19 +93,15 @@ struct WorkoutView: View {
             Button("Keep logging", role: .cancel) {}
         }
         .safeAreaInset(edge: .bottom) {
-            if let rest {
+            if let rest = timer.rest {
                 RestTimerBar(rest: rest.endsAt, total: rest.seconds, exerciseName: rest.exerciseName,
-                             onAddTime: {
-                                 self.rest?.endsAt.addTimeInterval(30)
-                                 self.rest?.seconds += 30
-                                 if let rest = self.rest { Task { await RestNotifier.schedule(endsAt: rest.endsAt, exerciseName: rest.exerciseName) } }
-                             },
-                             onSkip: { self.rest = nil; RestNotifier.cancel() },
+                             onAddTime: { timer.addTime() },
+                             onSkip: { timer.skip() },
                              onFinished: { restsFinished += 1 })
             }
         }
         .sensoryFeedback(.success, trigger: restsFinished)
-        .animation(.snappy, value: rest)
+        .animation(.snappy, value: timer.rest)
         .sheet(isPresented: $showAddExercise) {
             SessionExercisePicker(session: session, replacing: nil, metric: metric)
         }
@@ -145,11 +136,7 @@ struct WorkoutView: View {
     }
 
     private func startRest(after exercise: Exercise) {
-        let seconds = RestRule.clamp(exercise.restSeconds)
-        let endsAt = Date.now.addingTimeInterval(TimeInterval(seconds))
-        rest = Rest(endsAt: endsAt, seconds: seconds, exerciseName: exercise.name)
-        // Rings when the phone is locked; in the foreground the bar and haptic do the job.
-        Task { await RestNotifier.schedule(endsAt: endsAt, exerciseName: exercise.name) }
+        timer.start(seconds: RestRule.clamp(exercise.restSeconds), exerciseName: exercise.name, dayName: session.templateDayName)
     }
 
     /// Finishes at once when every set has reps; otherwise asks, since finishing drops the rest.
@@ -165,7 +152,7 @@ struct WorkoutView: View {
     }
 
     private func finish() {
-        RestNotifier.cancel()
+        timer.finishWorkout()
         // Counted before the deletes: until the save, `session.sets` still lists the deleted sets,
         // so checking it afterwards kept a discarded workout as an empty completed session.
         let hasLoggedSets = session.loggedSetCount > 0
