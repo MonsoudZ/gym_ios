@@ -173,14 +173,27 @@ struct ExerciseProgressView: View {
     }
 
     var body: some View {
+        let history = exercise.sessionResults()
         let points = Self.points(for: exercise)
+        let annotations = ProgressionEngine.annotate(history: history, config: exercise.config)
+        let deloadDates = Set(annotations.filter { $0.deload != nil }.map(\.date))
         List {
             Section {
                 if points.count >= 2 {
-                    Chart(points, id: \.date) { p in
-                        LineMark(x: .value("Date", p.date), y: .value("e1RM", display(p.value)))
-                            .interpolationMethod(.monotone)
-                        PointMark(x: .value("Date", p.date), y: .value("e1RM", display(p.value)))
+                    Chart {
+                        ForEach(points, id: \.date) { p in
+                            LineMark(x: .value("Date", p.date), y: .value("e1RM", display(p.value)))
+                                .interpolationMethod(.monotone)
+                            PointMark(x: .value("Date", p.date), y: .value("e1RM", display(p.value)))
+                        }
+                        // Deloads get a marker so a dip reads as a decision, not a bad day.
+                        ForEach(points.filter { deloadDates.contains($0.date) }, id: \.date) { p in
+                            PointMark(x: .value("Date", p.date), y: .value("e1RM", display(p.value)))
+                                .symbol(.diamond).symbolSize(120).foregroundStyle(.orange)
+                                .annotation(position: .bottom, spacing: 4) {
+                                    Text("Deload").font(.caption2.weight(.medium)).foregroundStyle(.orange)
+                                }
+                        }
                     }
                     .chartYScale(domain: .automatic(includesZero: false))
                     .frame(height: 220)
@@ -200,18 +213,24 @@ struct ExerciseProgressView: View {
             }
 
             Section("Sessions") {
-                ForEach(exercise.sessionResults().reversed(), id: \.date) { result in
-                    let verdict = ProgressionEngine.verdict(for: result.sets, config: exercise.config)
+                ForEach(Array(zip(history, annotations)).reversed(), id: \.0.date) { result, note in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
                             Text(result.date, format: .dateTime.day().month())
                             Spacer()
-                            VerdictBadge(verdict: verdict)
+                            VerdictBadge(verdict: note.verdict)
                         }
                         Text(result.sets.filter { !$0.isWarmup }
                             .map { "\(Units.weight($0.weight, metric: metric)) × \($0.reps)\($0.rpe.map { " @\(Units.number($0))" } ?? "")" }
                             .joined(separator: "  ·  "))
                         .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        if let deload = note.deload {
+                            Label(deloadText(deload), systemImage: StallAction.deload.systemImage)
+                                .font(.caption.weight(.medium)).foregroundStyle(.orange)
+                        } else if note.stallStreak >= ProgressionEngine.stallThreshold {
+                            Label("Stalled \(note.stallStreak) sessions", systemImage: "exclamationmark.triangle")
+                                .font(.caption.weight(.medium)).foregroundStyle(.orange)
+                        }
                     }
                 }
             }
@@ -221,6 +240,13 @@ struct ExerciseProgressView: View {
     }
 
     private func display(_ kg: Double) -> Double { metric ? kg : kg * Units.lbPerKg }
+
+    private func deloadText(_ deload: DeloadMark) -> String {
+        let drop = "Deloaded \(Units.number(deload.percentDrop, maxFraction: 0))%: \(Units.weight(deload.fromWeight, metric: metric)) → \(Units.weight(deload.toWeight, metric: metric))"
+        return deload.stalledSessionsBefore > 0
+            ? "\(drop), after stalling \(deload.stalledSessionsBefore) session\(deload.stalledSessionsBefore == 1 ? "" : "s")"
+            : drop
+    }
 
     @ViewBuilder private func changeRow(_ label: String, points: [DatedValue], days: Int) -> some View {
         HStack {

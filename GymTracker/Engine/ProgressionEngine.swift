@@ -98,6 +98,26 @@ nonisolated struct Prescription: Hashable, Sendable {
     var isNotable: Bool { stallAction != nil || lastVerdict == .progressed || readinessAdjusted }
 }
 
+/// A session where the top load dropped by more than the deload boundary: what it came down
+/// from, and how long the lift had been stuck before it.
+nonisolated struct DeloadMark: Hashable, Sendable {
+    var fromWeight: Double
+    var toWeight: Double
+    var stalledSessionsBefore: Int
+
+    var percentDrop: Double { fromWeight > 0 ? (1 - toWeight / fromWeight) * 100 : 0 }
+}
+
+/// One session of history as the engine saw it: its verdict, the stall streak as of that
+/// session, and whether it was a deload. Lets the history screen show why loads moved.
+nonisolated struct SessionAnnotation: Hashable, Sendable {
+    var date: Date
+    var verdict: Verdict
+    /// Consecutive non-progressed sessions up to and including this one.
+    var stallStreak: Int
+    var deload: DeloadMark?
+}
+
 /// Double progression with autoregulated deloads. Rules in DESIGN.md §2.3–2.4.
 nonisolated enum ProgressionEngine {
     static let deloadFactor = 0.9
@@ -148,6 +168,31 @@ nonisolated enum ProgressionEngine {
             }
         }
         return (streak, consecutiveFails, lowReadiness)
+    }
+
+    /// Walks the history forwards with the same rules `stallStreak` applies backwards, so the
+    /// streak shown on a past session matches what the engine counted at the time.
+    static func annotate(history: [SessionResult], config: ExerciseConfig) -> [SessionAnnotation] {
+        var streak = 0
+        var result: [SessionAnnotation] = []
+        for (index, session) in history.enumerated() {
+            let verdict = verdict(for: session.sets, config: config)
+            var deload: DeloadMark?
+            if index > 0,
+               let current = topWorkingWeight(session.sets),
+               let previous = topWorkingWeight(history[index - 1].sets),
+               current < previous * deloadBoundaryFactor {
+                deload = DeloadMark(fromWeight: previous, toWeight: current, stalledSessionsBefore: streak)
+                streak = 0
+            }
+            switch verdict {
+            case .progressed: streak = 0
+            case .incomplete: break
+            case .held, .failed: streak += 1
+            }
+            result.append(SessionAnnotation(date: session.date, verdict: verdict, stallStreak: streak, deload: deload))
+        }
+        return result
     }
 
     static func prescription(history: [SessionResult],

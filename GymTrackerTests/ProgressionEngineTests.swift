@@ -106,6 +106,43 @@ final class ProgressionEngineTests: XCTestCase {
         XCTAssertEqual(p.weight, 82.5)
     }
 
+    // MARK: History annotation
+
+    func testAnnotateMarksDeloadWithStreakBeforeIt() {
+        let history = [
+            session(80, reps: [8, 8, 8], daysAgo: 20),
+            session(82.5, reps: [7, 7, 7], daysAgo: 17), session(82.5, reps: [7, 7, 7], daysAgo: 14), session(82.5, reps: [7, 7, 7], daysAgo: 11),
+            session(75, reps: [8, 8, 7], daysAgo: 8),
+            session(75, reps: [8, 8, 8], daysAgo: 4),
+        ]
+        let notes = ProgressionEngine.annotate(history: history, config: config)
+        XCTAssertEqual(notes.map(\.stallStreak), [0, 1, 2, 3, 1, 0])
+        XCTAssertEqual(notes.map { $0.deload != nil }, [false, false, false, false, true, false])
+        let deload = notes[4].deload!
+        XCTAssertEqual(deload.fromWeight, 82.5)
+        XCTAssertEqual(deload.toWeight, 75)
+        XCTAssertEqual(deload.stalledSessionsBefore, 3)
+        XCTAssertEqual(deload.percentDrop, 9.09, accuracy: 0.01)
+    }
+
+    func testAnnotateStreakMatchesStallStreak() {
+        let history = [
+            session(80, reps: [7, 7, 7], daysAgo: 14), session(80, reps: [7, 7, 7], daysAgo: 11), session(80, reps: [7, 7, 7], daysAgo: 8),
+            session(72.5, reps: [8, 8, 7], daysAgo: 4),
+            session(72.5, reps: [8, 8, 7], daysAgo: 1),
+        ]
+        let notes = ProgressionEngine.annotate(history: history, config: config)
+        XCTAssertEqual(notes.last?.stallStreak, ProgressionEngine.stallStreak(history: history, config: config).streak)
+        XCTAssertEqual(notes.last?.stallStreak, 2)
+    }
+
+    func testAnnotateIgnoresIncompleteSessionsForTheStreak() {
+        let history = [session(80, reps: [7, 7, 7], daysAgo: 7), session(80, reps: [0, 0, 0], daysAgo: 4), session(80, reps: [7, 7, 7], daysAgo: 1)]
+        let notes = ProgressionEngine.annotate(history: history, config: config)
+        XCTAssertEqual(notes.map(\.verdict), [.held, .incomplete, .held])
+        XCTAssertEqual(notes.map(\.stallStreak), [1, 1, 2])
+    }
+
     // MARK: Readiness
 
     func testLowSleepReducesLoadFivePercent() {

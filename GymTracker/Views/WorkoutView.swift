@@ -95,8 +95,12 @@ struct WorkoutView: View {
         .safeAreaInset(edge: .bottom) {
             if let rest {
                 RestTimerBar(rest: rest.endsAt, total: rest.seconds, exerciseName: rest.exerciseName,
-                             onAddTime: { self.rest?.endsAt.addTimeInterval(30); self.rest?.seconds += 30 },
-                             onSkip: { self.rest = nil },
+                             onAddTime: {
+                                 self.rest?.endsAt.addTimeInterval(30)
+                                 self.rest?.seconds += 30
+                                 if let rest = self.rest { Task { await RestNotifier.schedule(endsAt: rest.endsAt, exerciseName: rest.exerciseName) } }
+                             },
+                             onSkip: { self.rest = nil; RestNotifier.cancel() },
                              onFinished: { restsFinished += 1 })
             }
         }
@@ -118,7 +122,10 @@ struct WorkoutView: View {
 
     private func startRest(after exercise: Exercise) {
         let seconds = RestRule.clamp(exercise.restSeconds)
-        rest = Rest(endsAt: .now.addingTimeInterval(TimeInterval(seconds)), seconds: seconds, exerciseName: exercise.name)
+        let endsAt = Date.now.addingTimeInterval(TimeInterval(seconds))
+        rest = Rest(endsAt: endsAt, seconds: seconds, exerciseName: exercise.name)
+        // Rings when the phone is locked; in the foreground the bar and haptic do the job.
+        Task { await RestNotifier.schedule(endsAt: endsAt, exerciseName: exercise.name) }
     }
 
     /// Finishes at once when every set has reps; otherwise asks, since finishing drops the rest.
@@ -134,6 +141,7 @@ struct WorkoutView: View {
     }
 
     private func finish() {
+        RestNotifier.cancel()
         for set in session.sets where set.reps <= 0 {
             context.delete(set)
         }

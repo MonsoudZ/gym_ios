@@ -194,11 +194,15 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
 - RPE picker inline. No menus.
 - Ticking a set done dims the row and starts the exercise's rest countdown in a bar at the
   bottom: time left, +30 s, skip. A haptic marks the end of the rest. Warm-ups start no timer.
+  A local notification fires at zero when the phone is locked (asked for on the first rest).
 - "Add set" under each exercise, "Add exercise" at the end, swipe right to mark a warm-up.
 
 **Progress screens**
 
 - Per lift: e1RM trend line with sessions as dots. 4-week and 12-week change in bold.
+  Deload sessions carry an orange diamond on the line, and their row says what happened:
+  "Deloaded 10%: 80 → 72.5 kg, after stalling 3 sessions". Rows at or past the stall
+  threshold say "Stalled N sessions", so the Today card's decision can be traced back.
 - Per muscle: weekly hard sets as a bar chart against the 10 / 20 bands.
 - Bodyweight: trend line over raw dots, with the goal slope drawn as a reference.
 - Expenditure: current estimate, confidence, and how it has moved.
