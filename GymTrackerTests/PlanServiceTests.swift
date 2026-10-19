@@ -13,7 +13,7 @@ final class PlanServiceTests: XCTestCase {
         let schema = Schema([
             Exercise.self, WorkoutSession.self, SetEntry.self,
             BodyweightEntry.self, IntakeEntry.self, UserSettings.self, FoodItem.self,
-            Program.self, ProgramDay.self, ReadinessEntry.self, AdjustmentEntry.self,
+            Program.self, ProgramDay.self, ReadinessEntry.self, AdjustmentEntry.self, SavedMeal.self,
         ])
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
         self.container = container

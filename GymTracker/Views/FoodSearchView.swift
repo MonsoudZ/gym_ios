@@ -5,8 +5,10 @@ struct FoodSearchView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \FoodItem.lastUsed, order: .reverse) private var savedFoods: [FoodItem]
+    @Query(sort: \SavedMeal.lastUsed, order: .reverse) private var savedMeals: [SavedMeal]
 
     @State private var query = ""
+    @State private var selectedMeal: SavedMeal?
     @State private var results: [FoodDraft] = []
     @State private var isSearching = false
     @State private var searchError: String?
@@ -31,9 +33,32 @@ struct FoodSearchView: View {
         return savedFoods.filter { $0.name.lowercased().contains(q) || $0.brand.lowercased().contains(q) }
     }
 
+    private var mealMatches: [SavedMeal] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        if q.isEmpty { return Array(savedMeals.prefix(10)) }
+        return savedMeals.filter { $0.name.lowercased().contains(q) }
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                if !mealMatches.isEmpty {
+                    Section {
+                        ForEach(mealMatches, id: \.persistentModelID) { meal in
+                            Button { selectedMeal = meal } label: { MealRow(meal: meal) }
+                                .foregroundStyle(.primary)
+                        }
+                        .onDelete { offsets in
+                            let doomed = offsets.map { mealMatches[$0] }
+                            doomed.forEach(context.delete)
+                            context.saveOrLog()
+                        }
+                    } header: {
+                        Text("Your meals")
+                    } footer: {
+                        Text("Swipe a meal to delete it. Save a new one from Nutrition, under Logged today.")
+                    }
+                }
                 Section {
                     Button("Scan barcode", systemImage: "barcode.viewfinder") { showScanner = true }
                     barcodeRow
@@ -78,6 +103,9 @@ struct FoodSearchView: View {
             }
             .sheet(item: $selected) { draft in
                 LogFoodView(draft: draft) { dismiss() }
+            }
+            .sheet(item: $selectedMeal) { meal in
+                LogMealView(meal: meal) { dismiss() }
             }
             .sheet(isPresented: $showScanner) {
                 BarcodeScannerView { code in
@@ -241,6 +269,7 @@ struct LogFoodView: View {
             context.insert(item)
         }
         context.saveOrLog()
+        LogReminders.refresh(context: context)
         dismiss()
         onLogged()
     }

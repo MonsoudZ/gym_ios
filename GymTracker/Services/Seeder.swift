@@ -86,6 +86,7 @@ enum Seeder {
         try? context.delete(model: IntakeEntry.self)
         try? context.delete(model: UserSettings.self)
         try? context.delete(model: FoodItem.self)
+        try? context.delete(model: SavedMeal.self)
         try? context.delete(model: ProgramDay.self)
         try? context.delete(model: Program.self)
         context.saveOrLog()

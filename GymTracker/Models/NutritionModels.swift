@@ -61,6 +61,11 @@ final class UserSettings {
     /// Set when the first-run questions have been answered or skipped. Existing installs get
     /// `true` through migration, so only a fresh install sees onboarding.
     var hasCompletedOnboarding: Bool = true
+    /// Morning nudge to log weight and food (LogReminders). Off until the lifter asks for it,
+    /// because turning it on is what asks for notification permission.
+    var remindersEnabled: Bool = false
+    /// Minutes after midnight the reminder fires; 10:00 by default.
+    var reminderMinutes: Int = LogReminders.defaultMinutes
 
     init() {
         usesMetric = false

@@ -31,6 +31,17 @@ private struct SettingsForm: View {
     var programs: [Program]
     @Binding var confirmReset: Bool
     @Environment(\.modelContext) private var context
+    @Environment(\.openURL) private var openURL
+    /// False after the lifter has refused notifications in iOS Settings.
+    @State private var notificationsAllowed = true
+
+    private var reminderTime: Binding<Date> {
+        Binding(get: { Calendar.current.date(byAdding: .minute, value: settings.reminderMinutes, to: Calendar.current.startOfDay(for: .now))! },
+                set: { date in
+                    let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+                    settings.reminderMinutes = (c.hour ?? 10) * 60 + (c.minute ?? 0)
+                })
+    }
 
     var body: some View {
         Form {
@@ -137,6 +148,35 @@ private struct SettingsForm: View {
             } footer: {
                 Text("Used only for the provisional calorie estimate before the app has measured your expenditure.")
             }
+
+            Section {
+                Toggle("Morning log reminder", isOn: $settings.remindersEnabled)
+                if settings.remindersEnabled {
+                    DatePicker("Remind me at", selection: reminderTime, displayedComponents: .hourAndMinute)
+                }
+                if !notificationsAllowed {
+                    Button("Notifications are off for GymTracker. Open Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    }
+                    .font(.subheadline)
+                }
+            } header: {
+                Text("Reminders")
+            } footer: {
+                Text("A nudge at that time on days when today's weight or food is still missing. The calorie target becomes adaptive faster when both are logged every day.")
+            }
+            .onChange(of: settings.remindersEnabled) { _, on in
+                Task {
+                    if on, !(await LogReminders.requestAuthorization()) {
+                        notificationsAllowed = false
+                        settings.remindersEnabled = false
+                    } else {
+                        notificationsAllowed = true
+                        LogReminders.refresh(context: context)
+                    }
+                }
+            }
+            .onChange(of: settings.reminderMinutes) { _, _ in LogReminders.refresh(context: context) }
 
             Section("Data") {
                 Button("Load demo data (8 weeks)") {

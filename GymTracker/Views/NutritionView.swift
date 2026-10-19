@@ -10,6 +10,7 @@ struct NutritionView: View {
     @Query(sort: \AdjustmentEntry.date, order: .reverse) private var adjustments: [AdjustmentEntry]
 
     @State private var showAddFood = false
+    @State private var showSaveMeal = false
     @State private var weightText = ""
     @FocusState private var weightFieldFocused: Bool
 
@@ -33,6 +34,7 @@ struct NutritionView: View {
                 }
             }
             .sheet(isPresented: $showAddFood) { FoodSearchView() }
+            .sheet(isPresented: $showSaveMeal) { SaveMealView() }
         }
     }
 
@@ -166,6 +168,11 @@ struct NutritionView: View {
             }
             .onDelete { offsets in
                 for index in offsets { context.delete(today[index]) }
+                context.saveOrLog()
+                LogReminders.refresh(context: context)
+            }
+            if !intake.isEmpty {
+                Button("Save foods as a meal", systemImage: "square.stack") { showSaveMeal = true }
             }
         }
     }
@@ -184,6 +191,7 @@ struct NutritionView: View {
             context.insert(BodyweightEntry(date: today, kg: kg))
         }
         context.saveOrLog()
+        LogReminders.refresh(context: context)
         weightText = ""
     }
 }
@@ -235,6 +243,7 @@ struct AddIntakeView: View {
         let energy = kcal ?? (4 * p + 4 * c + 9 * f)
         context.insert(IntakeEntry(name: name.isEmpty ? "Food" : name, kcal: energy, protein: p, carbs: c, fat: f, fibre: fibre ?? 0))
         context.saveOrLog()
+        LogReminders.refresh(context: context)
         dismiss()
     }
 }
