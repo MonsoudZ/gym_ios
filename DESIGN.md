@@ -201,6 +201,10 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
   bottom: time left, +30 s, skip. A haptic marks the end of the rest. Warm-ups start no timer.
   A local notification fires at zero when the phone is locked (asked for on the first rest).
 - "Add set" under each exercise, "Add exercise" at the end, swipe right to mark a warm-up.
+- Each exercise has a ⋯ menu for today only; the program is never edited. **Swap** replaces
+  its unlogged sets with another exercise (same-muscle ones listed first) at the weight that
+  exercise's own history prescribes. **Skip** drops its unlogged sets. Sets already logged
+  stay. A skipped lift leaves no sets, so it gets no verdict and cannot count as a miss.
 
 **Progress screens**
 
@@ -213,6 +217,12 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
 - Expenditure: current estimate, confidence, and how it has moved. A "Past checks" row
   unfolds the last six applied adjustments with the trend-vs-goal that drove each one and
   the running total after it.
+
+- Correcting history: a lift's session rows, and the Last session card, open the session
+  for editing: weight, reps, RPE, warm-up flag, add or delete sets, the date, or delete the
+  whole workout. Verdicts, stall streaks and the next prescription are recomputed, so a
+  mistyped set stops poisoning them. Clearing a set's reps drops it on leaving; a session
+  left with no sets is removed.
 
 **Rules of thumb**
 

@@ -21,6 +21,8 @@ nonisolated struct SessionResult: Hashable, Sendable {
     var date: Date
     var sets: [LoggedSet]
     var readinessWasLow: Bool = false
+    /// The session these sets came from, so a history row can open it for correction.
+    var sessionID: UUID? = nil
 }
 
 nonisolated enum Verdict: String, Sendable {

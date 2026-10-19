@@ -69,7 +69,8 @@ final class Exercise {
                     .sorted { $0.setNumber < $1.setNumber }
                     .map { LoggedSet(weight: $0.weight, reps: $0.reps, rpe: $0.rpe, isWarmup: $0.isWarmup) }
                 return SessionResult(date: entry.session.date, sets: logged,
-                                     readinessWasLow: entry.session.readiness.isLow(for: muscles))
+                                     readinessWasLow: entry.session.readiness.isLow(for: muscles),
+                                     sessionID: entry.session.id)
             }
     }
 

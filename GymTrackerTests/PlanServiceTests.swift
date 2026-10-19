@@ -204,6 +204,90 @@ final class PlanServiceTests: XCTestCase {
         XCTAssertEqual(session.orderedExercises.count, 1)
     }
 
+    @MainActor
+    func testSwapTakesTheOriginalsPlaceAndLeavesTheProgramAlone() throws {
+        let context = try makeContext()
+        let bench = Exercise(spec: ExerciseLibrary.spec("Barbell Bench Press")!)
+        let row = Exercise(spec: ExerciseLibrary.spec("Barbell Row")!)
+        let dumbbell = Exercise(spec: ExerciseLibrary.spec("Incline Dumbbell Press")!)
+        [bench, row, dumbbell].forEach(context.insert)
+        let session = WorkoutSession(templateDayName: "Upper A")
+        context.insert(session)
+        session.addExercise(bench, weight: 80, in: context)
+        session.addExercise(row, weight: 60, in: context)
+
+        session.swap(bench, for: dumbbell, weight: 30, in: context)
+        context.saveOrLog()
+
+        XCTAssertEqual(session.orderedExercises.map(\.name), [dumbbell.name, row.name])
+        XCTAssertTrue(session.sets(for: bench).isEmpty)
+        XCTAssertEqual(session.sets(for: dumbbell).count, bench.setCount)
+        XCTAssertEqual(session.sets(for: dumbbell).map(\.weight), Array(repeating: 30, count: bench.setCount))
+    }
+
+    @MainActor
+    func testSwapKeepsSetsAlreadyLoggedAndDoesNotInterleave() throws {
+        let context = try makeContext()
+        let bench = Exercise(spec: ExerciseLibrary.spec("Barbell Bench Press")!)
+        let dumbbell = Exercise(spec: ExerciseLibrary.spec("Incline Dumbbell Press")!)
+        [bench, dumbbell].forEach(context.insert)
+        let session = WorkoutSession(templateDayName: "Upper A")
+        context.insert(session)
+        session.addExercise(bench, weight: 80, in: context)
+        session.sets(for: bench).first?.reps = 8   // one set done before the bench was taken
+
+        session.swap(bench, for: dumbbell, weight: 30, in: context)
+        context.saveOrLog()
+
+        XCTAssertEqual(session.sets(for: bench).count, 1)
+        XCTAssertEqual(session.sets(for: dumbbell).count, bench.setCount - 1)
+        XCTAssertEqual(session.orderedExercises.map(\.name), [bench.name, dumbbell.name])
+        XCTAssertTrue(session.sets(for: dumbbell).allSatisfy { $0.setNumber > 0 })
+    }
+
+    @MainActor
+    func testSkipDropsUnloggedSetsOnlyAndLeavesNoVerdict() throws {
+        let context = try makeContext()
+        let bench = Exercise(spec: ExerciseLibrary.spec("Barbell Bench Press")!)
+        let row = Exercise(spec: ExerciseLibrary.spec("Barbell Row")!)
+        [bench, row].forEach(context.insert)
+        let session = WorkoutSession(templateDayName: "Upper A")
+        context.insert(session)
+        session.addExercise(bench, weight: 80, in: context)
+        session.addExercise(row, weight: 60, in: context)
+        session.sets(for: row).first?.reps = 8
+
+        XCTAssertFalse(session.skip(bench, in: context))
+        XCTAssertTrue(session.skip(row, in: context))
+        session.isCompleted = true
+        context.saveOrLog()
+
+        XCTAssertEqual(session.orderedExercises.map(\.name), [row.name])
+        XCTAssertEqual(session.sets(for: row).count, 1)
+        XCTAssertTrue(bench.sessionResults().isEmpty, "a skipped lift has no history, so no miss")
+    }
+
+    @MainActor
+    func testEditingASetChangesTheVerdictAndHistoryRowsNameTheirSession() throws {
+        let context = try makeContext()
+        let bench = Exercise(spec: ExerciseLibrary.spec("Barbell Bench Press")!)
+        context.insert(bench)
+        let session = completedSession(bench, on: october(12, hour: 7), sets: 3, in: context)
+        let mistyped = session.sets(for: bench).first!
+        mistyped.reps = 1   // a mistyped rep count
+        context.saveOrLog()
+
+        let before = bench.sessionResults()
+        XCTAssertEqual(before.last?.sessionID, session.id)
+        let typo = ProgressionEngine.verdict(for: before.last!.sets, config: bench.config)
+        XCTAssertEqual(typo, .failed)
+
+        mistyped.reps = 8
+        context.saveOrLog()
+        let fixed = ProgressionEngine.verdict(for: bench.sessionResults().last!.sets, config: bench.config)
+        XCTAssertNotEqual(typo, fixed)
+    }
+
     // MARK: Weekly adjustment history
 
     @MainActor

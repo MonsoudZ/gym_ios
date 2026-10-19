@@ -97,6 +97,33 @@ final class WorkoutSession {
         }
     }
 
+    /// Drops an exercise's sets that have no reps. Sets already logged stay, so skipping
+    /// halfway keeps what was done. Returns whether any logged sets remain.
+    @discardableResult
+    func skip(_ exercise: Exercise, in context: ModelContext) -> Bool {
+        for set in sets(for: exercise) where set.reps <= 0 { context.delete(set) }
+        return sets.contains { $0.exercise?.persistentModelID == exercise.persistentModelID && $0.reps > 0 }
+    }
+
+    /// Replaces `old`'s unlogged sets with the same number of working sets of `replacement` at
+    /// `weight`. The replacement takes `old`'s place in the order; the program is untouched.
+    func swap(_ old: Exercise, for replacement: Exercise, weight: Double, in context: ModelContext) {
+        guard old.persistentModelID != replacement.persistentModelID, sets(for: replacement).isEmpty else { return }
+        let existing = sets(for: old)
+        let order = exerciseOrder(of: old)
+        let count = max(1, existing.filter { !$0.isWarmup && $0.reps <= 0 }.count)
+        // Numbered after any sets of `old` that stay, so the two never interleave.
+        let first = (existing.map(\.setNumber).max() ?? -1) + 1
+        for set in existing where set.reps <= 0 { context.delete(set) }
+        for number in 0..<count {
+            let set = SetEntry(exerciseOrder: order, setNumber: first + number, weight: weight)
+            set.exercise = replacement
+            set.session = self
+            context.insert(set)
+            sets.append(set)
+        }
+    }
+
     /// Adds an exercise that was not in the plan, with its usual set count at `weight`.
     func addExercise(_ exercise: Exercise, weight: Double, in context: ModelContext) {
         guard sets(for: exercise).isEmpty else { return }

@@ -19,6 +19,7 @@ struct WorkoutView: View {
     @State private var confirmPartialFinish = false
     @State private var confirmDiscard = false
     @State private var showAddExercise = false
+    @State private var swapping: Exercise?
 
     private var metric: Bool { settingsList.first?.usesMetric ?? true }
 
@@ -64,7 +65,11 @@ struct WorkoutView: View {
                     .font(.subheadline)
                     .buttonStyle(.borderless)
                 } header: {
-                    Text(exercise.name)
+                    HStack {
+                        Text(exercise.name)
+                        Spacer()
+                        exerciseMenu(exercise, hasLoggedSets: exerciseSets.contains { $0.reps > 0 })
+                    }
                 } footer: {
                     Text("Target \(exercise.repRangeLow)–\(exercise.repRangeHigh) reps, RPE \(Units.number(exercise.rpeCap)) or below. Rest \(RestRule.label(exercise.restSeconds)). Swipe a set right to mark it a warm-up; warm-ups never count as volume.")
                 }
@@ -107,8 +112,27 @@ struct WorkoutView: View {
         .sensoryFeedback(.success, trigger: restsFinished)
         .animation(.snappy, value: rest)
         .sheet(isPresented: $showAddExercise) {
-            SessionExercisePicker(session: session, metric: metric)
+            SessionExercisePicker(session: session, replacing: nil, metric: metric)
         }
+        .sheet(item: $swapping) { old in
+            SessionExercisePicker(session: session, replacing: old, metric: metric)
+        }
+    }
+
+    /// Swap or skip for today only: the program is not edited, and a skipped lift leaves no
+    /// sets behind, so it gets no verdict and cannot count as a miss.
+    private func exerciseMenu(_ exercise: Exercise, hasLoggedSets: Bool) -> some View {
+        Menu {
+            Button("Swap exercise", systemImage: "arrow.left.arrow.right") { swapping = exercise }
+            Button(hasLoggedSets ? "Skip remaining sets" : "Skip exercise", systemImage: "forward.end", role: .destructive) {
+                session.skip(exercise, in: context)
+                context.saveOrLog()
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle").font(.body)
+        }
+        .textCase(nil)
+        .accessibilityLabel("\(exercise.name) options")
     }
 
     @ViewBuilder private func lastTimeRow(_ exercise: Exercise) -> some View {
@@ -142,19 +166,24 @@ struct WorkoutView: View {
 
     private func finish() {
         RestNotifier.cancel()
+        // Counted before the deletes: until the save, `session.sets` still lists the deleted sets,
+        // so checking it afterwards kept a discarded workout as an empty completed session.
+        let hasLoggedSets = session.loggedSetCount > 0
         for set in session.sets where set.reps <= 0 {
             context.delete(set)
         }
-        session.isCompleted = !session.sets.isEmpty
-        if session.sets.isEmpty { context.delete(session) }
+        session.isCompleted = hasLoggedSets
+        if !hasLoggedSets { context.delete(session) }
         context.saveOrLog()
         dismiss()
     }
 }
 
-/// Adds an exercise that was not planned, with the weight the engine would have prescribed.
+/// Adds an exercise that was not planned, or with `replacing` set, swaps it in for that
+/// exercise. Either way it gets the weight the engine would have prescribed.
 private struct SessionExercisePicker: View {
     var session: WorkoutSession
+    var replacing: Exercise?
     var metric: Bool
 
     @Environment(\.modelContext) private var context
@@ -169,22 +198,43 @@ private struct SessionExercisePicker: View {
             || $0.muscles.contains { $0.muscle.displayName.lowercased().contains(q) }) }
     }
 
+    /// When swapping, exercises that train the same main muscle come first.
+    private var similar: [Exercise] {
+        guard let muscle = replacing?.primaryMuscle else { return [] }
+        return candidates.filter { $0.primaryMuscle == muscle }
+    }
+
     var body: some View {
         NavigationStack {
-            List(candidates, id: \.persistentModelID) { exercise in
-                Button { add(exercise) } label: { ExerciseSummaryRow(exercise: exercise, metric: metric) }
-                    .foregroundStyle(.primary)
+            List {
+                if !similar.isEmpty, let muscle = replacing?.primaryMuscle {
+                    Section("Same muscle: \(muscle.displayName)") { rows(similar) }
+                    Section("Everything else") { rows(candidates.filter { !similar.contains($0) }) }
+                } else {
+                    rows(candidates)
+                }
             }
             .searchable(text: $query, prompt: "Search by name or muscle")
-            .navigationTitle("Add exercise")
+            .navigationTitle(replacing.map { "Swap \($0.name)" } ?? "Add exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         }
     }
 
-    private func add(_ exercise: Exercise) {
+    private func rows(_ list: [Exercise]) -> some View {
+        ForEach(list, id: \.persistentModelID) { exercise in
+            Button { choose(exercise) } label: { ExerciseSummaryRow(exercise: exercise, metric: metric) }
+                .foregroundStyle(.primary)
+        }
+    }
+
+    private func choose(_ exercise: Exercise) {
         let prescription = PlanService.prescription(for: exercise, readiness: nil, weeklyVolume: [:], metric: metric)
-        session.addExercise(exercise, weight: prescription.weight, in: context)
+        if let replacing {
+            session.swap(replacing, for: exercise, weight: prescription.weight, in: context)
+        } else {
+            session.addExercise(exercise, weight: prescription.weight, in: context)
+        }
         context.saveOrLog()
         dismiss()
     }
@@ -249,6 +299,8 @@ struct SetRow: View {
     var displayNumber: Int
     var unit: String
     var metric: Bool
+    /// Hidden when correcting a finished session, where ticking a set done means nothing.
+    var showsDoneButton = true
     /// Called when the set is ticked done, not when it is un-ticked.
     var onComplete: () -> Void = {}
 
@@ -285,7 +337,7 @@ struct SetRow: View {
                     HStack(spacing: 8) {
                         rpePicker
                         Spacer(minLength: 0)
-                        doneButton
+                        if showsDoneButton { doneButton }
                     }
                 }
             } else {
@@ -295,12 +347,12 @@ struct SetRow: View {
                     repsField
                     Spacer(minLength: 0)
                     rpePicker
-                    doneButton
+                    if showsDoneButton { doneButton }
                 }
             }
         }
-        .opacity(isDone ? 0.55 : 1)
-        .listRowBackground(isDone ? Color.green.opacity(0.08) : nil)
+        .opacity(showsDoneButton && isDone ? 0.55 : 1)
+        .listRowBackground(showsDoneButton && isDone ? Color.green.opacity(0.08) : nil)
         .animation(.snappy, value: isDone)
     }
 

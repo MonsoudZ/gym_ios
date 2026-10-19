@@ -17,8 +17,14 @@ struct ProgressTabView: View {
         NavigationStack {
             List {
                 if let lastSession {
-                    Section("Last session") {
-                        LastSessionSummary(session: lastSession, metric: metric)
+                    Section {
+                        NavigationLink { SessionEditorView(session: lastSession) } label: {
+                            LastSessionSummary(session: lastSession, metric: metric)
+                        }
+                    } header: {
+                        Text("Last session")
+                    } footer: {
+                        Text("Tap to correct a set or delete the workout.")
                     }
                     Section {
                         VolumeChart(volume: PlanService.weeklyVolume(completedSessions: completed))
@@ -163,6 +169,7 @@ struct VolumeChart: View {
 struct ExerciseProgressView: View {
     var exercise: Exercise
     @Query private var settingsList: [UserSettings]
+    @Query(filter: #Predicate<WorkoutSession> { $0.isCompleted }) private var completedSessions: [WorkoutSession]
 
     private var metric: Bool { settingsList.first?.usesMetric ?? true }
 
@@ -212,27 +219,33 @@ struct ExerciseProgressView: View {
                 changeRow("12 weeks", points: points, days: 84)
             }
 
-            Section("Sessions") {
+            Section {
                 ForEach(Array(zip(history, annotations)).reversed(), id: \.0.date) { result, note in
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            Text(result.date, format: .dateTime.day().month())
-                            Spacer()
-                            VerdictBadge(verdict: note.verdict)
-                        }
-                        Text(result.sets.filter { !$0.isWarmup }
-                            .map { "\(Units.weight($0.weight, metric: metric)) × \($0.reps)\($0.rpe.map { " @\(Units.number($0))" } ?? "")" }
-                            .joined(separator: "  ·  "))
-                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                        if let deload = note.deload {
-                            Label(deloadText(deload), systemImage: StallAction.deload.systemImage)
-                                .font(.caption.weight(.medium)).foregroundStyle(.orange)
-                        } else if note.stallStreak >= ProgressionEngine.stallThreshold {
-                            Label("Stalled \(note.stallStreak) sessions", systemImage: "exclamationmark.triangle")
-                                .font(.caption.weight(.medium)).foregroundStyle(.orange)
+                    sessionLink(for: result) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                Text(result.date, format: .dateTime.day().month())
+                                Spacer()
+                                VerdictBadge(verdict: note.verdict)
+                            }
+                            Text(result.sets.filter { !$0.isWarmup }
+                                .map { "\(Units.weight($0.weight, metric: metric)) × \($0.reps)\($0.rpe.map { " @\(Units.number($0))" } ?? "")" }
+                                .joined(separator: "  ·  "))
+                            .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            if let deload = note.deload {
+                                Label(deloadText(deload), systemImage: StallAction.deload.systemImage)
+                                    .font(.caption.weight(.medium)).foregroundStyle(.orange)
+                            } else if note.stallStreak >= ProgressionEngine.stallThreshold {
+                                Label("Stalled \(note.stallStreak) sessions", systemImage: "exclamationmark.triangle")
+                                    .font(.caption.weight(.medium)).foregroundStyle(.orange)
+                            }
                         }
                     }
                 }
+            } header: {
+                Text("Sessions")
+            } footer: {
+                Text("Tap a session to correct a mistyped set or delete it. The verdicts and the next prescription update.")
             }
         }
         .navigationTitle(exercise.name)
@@ -240,6 +253,16 @@ struct ExerciseProgressView: View {
     }
 
     private func display(_ kg: Double) -> Double { metric ? kg : kg * Units.lbPerKg }
+
+    /// A history row opens its session for editing. The editor is a direct destination, not a
+    /// value, because Today also shows this screen and routes `WorkoutSession` values to the live workout.
+    @ViewBuilder private func sessionLink<Content: View>(for result: SessionResult, @ViewBuilder content: () -> Content) -> some View {
+        if let session = completedSessions.first(where: { $0.id == result.sessionID }) {
+            NavigationLink { SessionEditorView(session: session) } label: { content() }
+        } else {
+            content()
+        }
+    }
 
     private func deloadText(_ deload: DeloadMark) -> String {
         let drop = "Deloaded \(Units.number(deload.percentDrop, maxFraction: 0))%: \(Units.weight(deload.fromWeight, metric: metric)) → \(Units.weight(deload.toWeight, metric: metric))"
