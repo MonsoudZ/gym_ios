@@ -13,7 +13,7 @@ final class PlanServiceTests: XCTestCase {
         let schema = Schema([
             Exercise.self, WorkoutSession.self, SetEntry.self,
             BodyweightEntry.self, IntakeEntry.self, UserSettings.self, FoodItem.self,
-            Program.self, ProgramDay.self, ReadinessEntry.self,
+            Program.self, ProgramDay.self, ReadinessEntry.self, AdjustmentEntry.self,
         ])
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
         self.container = container
@@ -202,6 +202,28 @@ final class PlanServiceTests: XCTestCase {
         session.addExercise(bench, weight: 90, in: context)
         XCTAssertEqual(session.sets(for: bench).count, bench.setCount)
         XCTAssertEqual(session.orderedExercises.count, 1)
+    }
+
+    // MARK: Weekly adjustment history
+
+    @MainActor
+    func testApplyingAnAdjustmentRecordsItWithTheRunningTotal() throws {
+        let context = try makeContext()
+        let settings = UserSettings()
+        settings.goalRatePercentPerWeek = -0.5
+        context.insert(settings)
+        let first = settings.applyAdjustment(Adjustment(kcal: -100, note: nil), trendRatePercentPerWeek: -0.1, in: context, on: october(5, hour: 9))
+        let second = settings.applyAdjustment(Adjustment(kcal: 100, note: "note"), trendRatePercentPerWeek: -0.9, in: context, on: october(12, hour: 9))
+        context.saveOrLog()
+
+        XCTAssertEqual(settings.cumulativeAdjustmentKcal, 0)
+        XCTAssertEqual(settings.lastAdjustmentDate, october(12, hour: 9))
+        XCTAssertEqual(first.cumulativeKcalAfter, -100)
+        XCTAssertEqual(second.cumulativeKcalAfter, 0)
+        XCTAssertEqual(second.goalRatePercentPerWeek, -0.5)
+        XCTAssertEqual(second.note, "note")
+        let stored = try context.fetch(FetchDescriptor<AdjustmentEntry>(sortBy: [SortDescriptor(\.date)]))
+        XCTAssertEqual(stored.map(\.kcal), [-100, 100])
     }
 
     // MARK: Migration

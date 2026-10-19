@@ -205,7 +205,9 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
   threshold say "Stalled N sessions", so the Today card's decision can be traced back.
 - Per muscle: weekly hard sets as a bar chart against the 10 / 20 bands.
 - Bodyweight: trend line over raw dots, with the goal slope drawn as a reference.
-- Expenditure: current estimate, confidence, and how it has moved.
+- Expenditure: current estimate, confidence, and how it has moved. A "Past checks" row
+  unfolds the last six applied adjustments with the trend-vs-goal that drove each one and
+  the running total after it.
 
 **Rules of thumb**
 
@@ -225,6 +227,7 @@ SetEntry          id, sessionId, exerciseId, order, weight, reps, rpe, isWarmup
 BodyweightEntry   date, kg
 IntakeEntry       id, date, name, kcal, protein, carbs, fat, fibre
 Settings          units, goal, goalRate, proteinPerKg, fatFloorPerKg
+AdjustmentEntry   date, kcal, trendRate, goalRate, cumulativeAfter, note   — each applied weekly check
 ```
 
 Derived, never stored as truth: e1RM per set, weekly volume per muscle, trend weight,

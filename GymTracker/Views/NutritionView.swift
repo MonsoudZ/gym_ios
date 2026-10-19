@@ -7,6 +7,7 @@ struct NutritionView: View {
     @Query(sort: \BodyweightEntry.date) private var weights: [BodyweightEntry]
     @Query(sort: \IntakeEntry.date, order: .reverse) private var intake: [IntakeEntry]
     @Query private var settingsList: [UserSettings]
+    @Query(sort: \AdjustmentEntry.date, order: .reverse) private var adjustments: [AdjustmentEntry]
 
     @State private var showAddFood = false
     @State private var weightText = ""
@@ -72,12 +73,39 @@ struct NutritionView: View {
                         .font(.headline)
                     if let note = adj.note { Text(note).font(.caption).foregroundStyle(.secondary) }
                     Button("Apply and start next week") {
-                        settings.cumulativeAdjustmentKcal += Double(adj.kcal)
-                        settings.lastAdjustmentDate = .now
+                        settings.applyAdjustment(adj, trendRatePercentPerWeek: snap.trendRatePercentPerWeek ?? 0, in: context)
                         context.saveOrLog()
                     }
                     .buttonStyle(.bordered)
                 }
+            }
+            if !adjustments.isEmpty {
+                adjustmentHistory(settings: settings)
+            }
+        }
+    }
+
+    /// The last few weekly checks, newest first, so the direction of the adjustments can be read.
+    @ViewBuilder private func adjustmentHistory(settings: UserSettings) -> some View {
+        let recent = Array(adjustments.prefix(6))
+        DisclosureGroup {
+            ForEach(recent, id: \.persistentModelID) { entry in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text(entry.date, format: .dateTime.day().month())
+                        Spacer()
+                        Text(entry.kcal == 0 ? "Held" : "\(entry.kcal > 0 ? "+" : "")\(entry.kcal) kcal")
+                            .monospacedDigit()
+                            .foregroundStyle(entry.kcal == 0 ? .secondary : .primary)
+                    }
+                    Text("Trend \(Units.percent(entry.trendRatePercentPerWeek))/week vs goal \(Units.percent(entry.goalRatePercentPerWeek)) · total \(entry.cumulativeKcalAfter >= 0 ? "+" : "")\(Units.number(entry.cumulativeKcalAfter, maxFraction: 0)) kcal")
+                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                }
+            }
+        } label: {
+            LabeledContent("Past checks") {
+                Text("\(adjustments.count) · total \(settings.cumulativeAdjustmentKcal >= 0 ? "+" : "")\(Units.number(settings.cumulativeAdjustmentKcal, maxFraction: 0)) kcal")
+                    .monospacedDigit()
             }
         }
     }

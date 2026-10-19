@@ -80,6 +80,7 @@ enum Seeder {
         try? context.delete(model: SetEntry.self)
         try? context.delete(model: WorkoutSession.self)
         try? context.delete(model: ReadinessEntry.self)
+        try? context.delete(model: AdjustmentEntry.self)
         try? context.delete(model: Exercise.self)
         try? context.delete(model: BodyweightEntry.self)
         try? context.delete(model: IntakeEntry.self)
