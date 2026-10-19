@@ -170,8 +170,15 @@ struct ExerciseProgressView: View {
     var exercise: Exercise
     @Query private var settingsList: [UserSettings]
     @Query(filter: #Predicate<WorkoutSession> { $0.isCompleted }) private var completedSessions: [WorkoutSession]
+    @Query(sort: \BodyweightEntry.date) private var weights: [BodyweightEntry]
+    @State private var chartMode: ChartMode = .absolute
 
     private var metric: Bool { settingsList.first?.usesMetric ?? true }
+
+    enum ChartMode: String, CaseIterable, Identifiable {
+        case absolute, relative
+        var id: Self { self }
+    }
 
     static func points(for exercise: Exercise) -> [DatedValue] {
         exercise.sessionResults().compactMap { result in
@@ -184,18 +191,34 @@ struct ExerciseProgressView: View {
         let points = Self.points(for: exercise)
         let annotations = ProgressionEngine.annotate(history: history, config: exercise.config)
         let deloadDates = Set(annotations.filter { $0.deload != nil }.map(\.date))
+        // e1RM ÷ trend bodyweight on each session's date; empty until a weight has been logged.
+        let trend = NutritionEngine.trend(weights.map { DatedValue(date: $0.date, value: $0.kg) })
+        let relative = RelativeStrength.series(e1RM: points, trend: trend)
+        let showRelative = chartMode == .relative && relative.count >= 2
+        let plotted = showRelative ? relative : points
         List {
             Section {
-                if points.count >= 2 {
+                if let latest = points.last {
+                    latestRow(e1RM: latest, relative: relative.last(where: { $0.date == latest.date }))
+                }
+                if relative.count >= 2 {
+                    Picker("Chart", selection: $chartMode) {
+                        Text(metric ? "kg" : "lb").tag(ChartMode.absolute)
+                        Text("× bodyweight").tag(ChartMode.relative)
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowSeparator(.hidden)
+                }
+                if plotted.count >= 2 {
                     Chart {
-                        ForEach(points, id: \.date) { p in
-                            LineMark(x: .value("Date", p.date), y: .value("e1RM", display(p.value)))
+                        ForEach(plotted, id: \.date) { p in
+                            LineMark(x: .value("Date", p.date), y: .value(yLabel, plot(p.value, relative: showRelative)))
                                 .interpolationMethod(.monotone)
-                            PointMark(x: .value("Date", p.date), y: .value("e1RM", display(p.value)))
+                            PointMark(x: .value("Date", p.date), y: .value(yLabel, plot(p.value, relative: showRelative)))
                         }
                         // Deloads get a marker so a dip reads as a decision, not a bad day.
-                        ForEach(points.filter { deloadDates.contains($0.date) }, id: \.date) { p in
-                            PointMark(x: .value("Date", p.date), y: .value("e1RM", display(p.value)))
+                        ForEach(plotted.filter { deloadDates.contains($0.date) }, id: \.date) { p in
+                            PointMark(x: .value("Date", p.date), y: .value(yLabel, plot(p.value, relative: showRelative)))
                                 .symbol(.diamond).symbolSize(120).foregroundStyle(.orange)
                                 .annotation(position: .bottom, spacing: 4) {
                                     Text("Deload").font(.caption2.weight(.medium)).foregroundStyle(.orange)
@@ -204,6 +227,7 @@ struct ExerciseProgressView: View {
                     }
                     .chartYScale(domain: .automatic(includesZero: false))
                     .frame(height: 220)
+                    .accessibilityLabel(showRelative ? "Estimated 1RM as a multiple of bodyweight" : "Estimated 1RM")
                 } else {
                     Text("Two or more sessions with sets of 10 reps or fewer are needed for a trend.")
                         .foregroundStyle(.secondary)
@@ -211,12 +235,14 @@ struct ExerciseProgressView: View {
             } header: {
                 Text("Estimated 1RM")
             } footer: {
-                Text("Epley formula from your best set of 10 reps or fewer each session.")
+                Text(showRelative
+                     ? "Epley e1RM divided by your trend bodyweight on the day. Rising while you cut means strength is being kept."
+                     : "Epley formula from your best set of 10 reps or fewer each session.")
             }
 
             Section("Change") {
-                changeRow("4 weeks", points: points, days: 28)
-                changeRow("12 weeks", points: points, days: 84)
+                changeRow("4 weeks", points: points, relative: relative, days: 28)
+                changeRow("12 weeks", points: points, relative: relative, days: 84)
             }
 
             Section {
@@ -254,6 +280,30 @@ struct ExerciseProgressView: View {
 
     private func display(_ kg: Double) -> Double { metric ? kg : kg * Units.lbPerKg }
 
+    private var yLabel: String { chartMode == .relative ? "× bodyweight" : "e1RM" }
+
+    /// The ratio is unitless; only the raw e1RM needs converting for lb users.
+    private func plot(_ value: Double, relative: Bool) -> Double { relative ? value : display(value) }
+
+    /// Latest e1RM with its bodyweight multiple beside it, or a hint when no weight is logged yet.
+    private func latestRow(e1RM: DatedValue, relative: DatedValue?) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Latest")
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(Units.weight(e1RM.value, metric: metric)).bold().monospacedDigit()
+                if let relative {
+                    Text(RelativeStrength.label(relative.value))
+                        .font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+                } else {
+                    Text("Log a bodyweight to see this per kg")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     /// A history row opens its session for editing. The editor is a direct destination, not a
     /// value, because Today also shows this screen and routes `WorkoutSession` values to the live workout.
     @ViewBuilder private func sessionLink<Content: View>(for result: SessionResult, @ViewBuilder content: () -> Content) -> some View {
@@ -271,18 +321,28 @@ struct ExerciseProgressView: View {
             : drop
     }
 
-    @ViewBuilder private func changeRow(_ label: String, points: [DatedValue], days: Int) -> some View {
-        HStack {
+    @ViewBuilder private func changeRow(_ label: String, points: [DatedValue], relative: [DatedValue], days: Int) -> some View {
+        HStack(alignment: .firstTextBaseline) {
             Text(label)
             Spacer()
             if let latest = points.last,
                let earlier = NutritionEngine.value(in: points, atOrBefore: Calendar.current.date(byAdding: .day, value: -days, to: latest.date)!) {
                 let delta = latest.value - earlier.value
-                Text("\(delta >= 0 ? "+" : "")\(Units.weight(delta, metric: metric))")
-                    .bold().monospacedDigit().foregroundStyle(delta >= 0 ? .green : .red)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(delta >= 0 ? "+" : "")\(Units.weight(delta, metric: metric))")
+                        .bold().monospacedDigit().foregroundStyle(delta >= 0 ? .green : .red)
+                    // Same window on the ratio, so a flat lift on a falling bodyweight shows as a gain.
+                    if let latestRel = relative.last,
+                       let earlierRel = NutritionEngine.value(in: relative, atOrBefore: Calendar.current.date(byAdding: .day, value: -days, to: latestRel.date)!) {
+                        let relDelta = latestRel.value - earlierRel.value
+                        Text("\(relDelta >= 0 ? "+" : "")\(Units.number(relDelta, maxFraction: 2))× bodyweight")
+                            .font(.subheadline.monospacedDigit()).foregroundStyle(relDelta >= 0 ? .green : .red)
+                    }
+                }
             } else {
                 Text("Not enough history yet").foregroundStyle(.secondary)
             }
         }
+        .accessibilityElement(children: .combine)
     }
 }
