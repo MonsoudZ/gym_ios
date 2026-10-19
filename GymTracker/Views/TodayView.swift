@@ -8,6 +8,7 @@ struct TodayView: View {
     @Query private var settingsList: [UserSettings]
     @Query private var intake: [IntakeEntry]
     @Query(sort: \BodyweightEntry.date) private var weights: [BodyweightEntry]
+    @Query(sort: \Program.createdAt) private var programs: [Program]
 
     @State private var sleepText = ""
     @State private var soreMuscles: Set<Muscle> = []
@@ -17,9 +18,11 @@ struct TodayView: View {
     private var completed: [WorkoutSession] { sessions.filter(\.isCompleted) }
     private var inProgress: WorkoutSession? { sessions.first { !$0.isCompleted } }
 
+    private var activeProgram: Program? { settings?.activeProgram(in: programs) }
+
     private var day: TemplateDay? {
-        guard let settings else { return nil }
-        return PlanService.nextDay(template: ProgramTemplates.named(settings.templateName), completedSessions: completed)
+        guard let activeProgram else { return nil }
+        return PlanService.nextDay(template: activeProgram.asTemplate, completedSessions: completed)
     }
 
     private var readiness: Readiness? {
@@ -47,6 +50,12 @@ struct TodayView: View {
                             Label("Continue \(inProgress.templateDayName)", systemImage: "play.fill")
                         }
                     }
+                } else if day == nil {
+                    Section {
+                        Text("Your program has no days yet.").font(.headline)
+                        Text("Add a day and some exercises, and today's plan will appear here.")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
                 } else {
                     headlineSection
                     readinessSection
@@ -55,6 +64,16 @@ struct TodayView: View {
                 nutritionSection
             }
             .navigationTitle("Today")
+            .toolbar {
+                if let activeProgram {
+                    ToolbarItem(placement: .primaryAction) {
+                        NavigationLink(value: activeProgram) {
+                            Label(activeProgram.name, systemImage: "list.bullet.rectangle")
+                        }
+                    }
+                }
+            }
+            .navigationDestination(for: Program.self) { ProgramEditorView(program: $0) }
             .navigationDestination(for: WorkoutSession.self) { WorkoutView(session: $0) }
             .navigationDestination(item: $activeSession) { WorkoutView(session: $0) }
         }
@@ -95,8 +114,8 @@ struct TodayView: View {
                     .frame(width: 80)
                 Text("h").foregroundStyle(.secondary)
             }
-            if let day {
-                let muscles = Set(day.exercises.flatMap { $0.muscles.filter { $0.weight >= 0.5 }.map(\.muscle) })
+            if day != nil {
+                let muscles = Set(plan.flatMap { $0.exercise.muscles.filter { $0.weight >= 0.5 }.map(\.muscle) })
                     .sorted { $0.displayName < $1.displayName }
                 DisclosureGroup("Very sore in\(soreMuscles.isEmpty ? "" : " (\(soreMuscles.count))")") {
                     ForEach(muscles) { muscle in

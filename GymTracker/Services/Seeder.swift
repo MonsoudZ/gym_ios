@@ -13,6 +13,24 @@ enum Seeder {
             context.insert(exercise)
         }
         try? context.save()
+        ensurePrograms(context: context)
+    }
+
+    /// Seeds the built-in splits as editable programs once, and makes sure one is active.
+    static func ensurePrograms(context: ModelContext) {
+        var programs = (try? context.fetch(FetchDescriptor<Program>())) ?? []
+        if programs.isEmpty {
+            for template in ProgramTemplates.all {
+                let program = Program.make(from: template)
+                context.insert(program)
+                programs.append(program)
+            }
+        }
+        if let settings = try? context.fetch(FetchDescriptor<UserSettings>()).first,
+           settings.activeProgram(in: programs)?.id != settings.activeProgramID {
+            settings.activeProgramID = settings.activeProgram(in: programs)?.id
+        }
+        try? context.save()
     }
 
     /// Re-map every library exercise's increment to the plate step for the chosen unit.
@@ -33,6 +51,8 @@ enum Seeder {
         try? context.delete(model: IntakeEntry.self)
         try? context.delete(model: UserSettings.self)
         try? context.delete(model: FoodItem.self)
+        try? context.delete(model: ProgramDay.self)
+        try? context.delete(model: Program.self)
         try? context.save()
         seedIfNeeded(context: context)
     }

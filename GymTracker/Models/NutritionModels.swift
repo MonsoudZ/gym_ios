@@ -43,6 +43,7 @@ final class UserSettings {
     var proteinPerKgOverride: Double?
     var fatFloorPerKg: Double
     var templateName: String
+    var activeProgramID: UUID?
 
     // Profile, used only for the provisional Mifflin-St Jeor estimate.
     var heightCm: Double
@@ -63,6 +64,7 @@ final class UserSettings {
         proteinPerKgOverride = nil
         fatFloorPerKg = NutritionEngine.defaultFatFloorPerKg
         templateName = ProgramTemplates.upperLower.name
+        activeProgramID = nil
         heightCm = Units.cm(feet: 5, inches: 10)
         ageYears = 30
         isMale = true
@@ -74,4 +76,8 @@ final class UserSettings {
     }
 
     var proteinPerKg: Double { proteinPerKgOverride ?? goal.proteinPerKg }
+
+    func activeProgram(in programs: [Program]) -> Program? {
+        programs.first { $0.id == activeProgramID } ?? programs.first { $0.name == templateName } ?? programs.first
+    }
 }

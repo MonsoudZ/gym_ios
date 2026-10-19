@@ -24,6 +24,20 @@ final class Exercise {
         startingWeight = nil
     }
 
+    /// A blank custom exercise. Defaults: 3 × 8–12, one small plate step.
+    init(name: String, metric: Bool) {
+        self.name = name
+        muscles = []
+        repRangeLow = 8
+        repRangeHigh = 12
+        increment = ExerciseLibrary.increment(forKg: 2.5, metric: metric)
+        setCount = 3
+        rpeCap = 9
+        startingWeight = nil
+    }
+
+    var isFromLibrary: Bool { ExerciseLibrary.spec(name) != nil }
+
     var config: ExerciseConfig {
         ExerciseConfig(repRangeLow: repRangeLow, repRangeHigh: repRangeHigh, increment: increment,
                        setCount: setCount, rpeCap: rpeCap, startingWeight: startingWeight)

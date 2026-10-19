@@ -15,7 +15,8 @@ import SwiftData
 
 enum PlanService {
     /// The template day after the most recently completed one.
-    static func nextDay(template: ProgramTemplate, completedSessions: [WorkoutSession]) -> TemplateDay {
+    static func nextDay(template: ProgramTemplate, completedSessions: [WorkoutSession]) -> TemplateDay? {
+        guard !template.days.isEmpty else { return nil }
         guard let last = completedSessions.max(by: { $0.date < $1.date }),
               let index = template.days.firstIndex(where: { $0.name == last.templateDayName })
         else { return template.days[0] }

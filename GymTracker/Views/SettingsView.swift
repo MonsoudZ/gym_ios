@@ -5,13 +5,15 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var context
     @Query private var settingsList: [UserSettings]
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
+    @Query(sort: \Program.createdAt) private var programs: [Program]
     @State private var confirmReset = false
 
     var body: some View {
         NavigationStack {
             if let settings = settingsList.first {
-                SettingsForm(settings: settings, exercises: exercises, confirmReset: $confirmReset)
+                SettingsForm(settings: settings, exercises: exercises, programs: programs, confirmReset: $confirmReset)
                     .navigationTitle("Settings")
+                    .navigationDestination(for: Program.self) { ProgramEditorView(program: $0) }
             } else {
                 ProgressView()
             }
@@ -22,6 +24,7 @@ struct SettingsView: View {
 private struct SettingsForm: View {
     @Bindable var settings: UserSettings
     var exercises: [Exercise]
+    var programs: [Program]
     @Binding var confirmReset: Bool
     @Environment(\.modelContext) private var context
 
@@ -46,15 +49,42 @@ private struct SettingsForm: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                LabeledContent("Protein", value: "\(Units.number(settings.proteinPerKg)) g/kg")
+                Stepper(value: Binding(get: { settings.proteinPerKg },
+                                       set: { settings.proteinPerKgOverride = $0 }),
+                        in: 1.2...3.0, step: 0.1) {
+                    HStack {
+                        Text("Protein")
+                        Spacer()
+                        Text("\(Units.number(settings.proteinPerKg)) g/kg · \(Units.number(settings.proteinPerKg * settings.assumedWeightKg, maxFraction: 0)) g")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if settings.proteinPerKgOverride != nil {
+                    Button("Use the evidence-based default (\(Units.number(settings.goal.proteinPerKg)) g/kg)") {
+                        settings.proteinPerKgOverride = nil
+                    }
+                    .font(.caption)
+                }
             }
 
-            Section("Program") {
-                Picker("Template", selection: $settings.templateName) {
-                    ForEach(ProgramTemplates.all, id: \.name) { Text($0.name).tag($0.name) }
+            Section {
+                Picker("Active program", selection: Binding(
+                    get: { settings.activeProgram(in: programs)?.id ?? UUID() },
+                    set: { settings.activeProgramID = $0 })) {
+                    ForEach(programs, id: \.id) { Text($0.name).tag($0.id) }
                 }
-                Text(ProgramTemplates.named(settings.templateName).summary)
-                    .font(.caption).foregroundStyle(.secondary)
+                if let active = settings.activeProgram(in: programs) {
+                    NavigationLink(value: active) {
+                        Label("Edit \(active.name)", systemImage: "pencil")
+                    }
+                }
+                NavigationLink { ProgramsListView() } label: {
+                    Label("All programs", systemImage: "list.bullet.rectangle")
+                }
+            } header: {
+                Text("Program")
+            } footer: {
+                Text("Programs are yours to edit: rename days, add or remove exercises, or build one from scratch.")
             }
 
             Section {

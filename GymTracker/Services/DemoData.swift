@@ -21,6 +21,10 @@ enum DemoData {
         let start = cal.date(byAdding: .day, value: -56, to: today)!
 
         settings.templateName = ProgramTemplates.upperLower.name
+        if let programs = try? context.fetch(FetchDescriptor<Program>()),
+           let upperLower = programs.first(where: { $0.name == ProgramTemplates.upperLower.name }) {
+            settings.activeProgramID = upperLower.id
+        }
         settings.goal = .cut
         settings.goalRatePercentPerWeek = -0.5
         settings.assumedWeightKg = Units.kg(fromLb: 185)
