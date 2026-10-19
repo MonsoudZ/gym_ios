@@ -23,12 +23,15 @@ targets:
       path: GymTracker/GymTracker.entitlements
       properties:
         com.apple.security.application-groups: [group.com.monsoudzanaty.GymTracker]
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
     info:
       path: GymTracker/Info.plist
       properties:
         CFBundleDisplayName: GymTracker
         UILaunchScreen: {}
         NSCameraUsageDescription: Scan food barcodes to look them up in Open Food Facts.
+        NSHealthShareUsageDescription: Reads your heart rate variability and resting heart rate so a morning well below your usual can make today's lifts a little lighter.
         NSSupportsLiveActivities: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         CFBundleURLTypes:

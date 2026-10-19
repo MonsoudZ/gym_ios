@@ -23,10 +23,13 @@ struct ContentView: View {
         .environment(\.switchTab) { tab = $0 }
         // Re-plans the morning reminders each time the app opens, so today's drops out once logged.
         // The widgets are refreshed on every save; this catches the day changing while closed.
+        // The Health reading is re-read too, so the morning's HRV is on the Today tab by the
+        // time it is looked at.
         .task(id: scenePhase) {
             if scenePhase == .active {
                 LogReminders.refresh(context: context)
                 WidgetBridge.refresh(context: context)
+                await HealthService.refresh(context: context)
             }
         }
         .onOpenURL { url in

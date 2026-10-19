@@ -38,6 +38,7 @@ mixed, the spec says so, and the rule is conservative.
 | Dividing strength by bodyweight (ratio scaling) is the simplest way to normalise for body size, but it is biased: between individuals it systematically favours lighter people, because strength scales with body mass to a power below 1 (allometric scaling, exponent about 2/3, is the better between-person model). | Jaric 2002, *Sports Med* (narrative review of normalisation methods; ratio, allometric and regression scaling compared across strength tests). | Each lift's history also shows e1RM ÷ trend bodyweight ("1.52× bodyweight"), next to the raw e1RM and as a chart toggle, so a lifter who is cutting can see whether strength is being kept as weight falls. *Verification note: the ratio is only used to follow one person over time, where the body-size bias between individuals does not apply and the ratio directly answers "am I keeping strength per kg". It is never used to compare lifters or to drive any engine decision. Allometric scaling (e1RM ÷ bodyweight^0.67) would be the alternative; it was not used because the exponent is population-derived and adds nothing for a single lifter's trend.* |
 | Evidence that *scheduled* deloads help is weak. One RCT (39 trained lifters, 9 weeks) found a 1-week mid-programme deload (full rest) made no difference to lower-body hypertrophy, and the continuous group gained more lower-body strength. | Coleman et al. 2024, *PeerJ*. Bell et al. 2022, *Front Sports Act Living* (coach perceptions and practices, qualitative; opinion, not outcome evidence). Bell et al. 2023, *Sports Med Open* (Delphi consensus of expert opinion). | No calendar deloads. Deload is triggered by stalling plus fatigue signals (§2.3). *Verification note: one small RCT of a single full-rest week; it shows scheduled deloads are not needed, not that autoregulated 10% deloads work. That trigger is expert-opinion based.* |
 | Restricted sleep can reduce maximal strength in multi-joint lifts; total sleep deprivation had little effect on strength. | Knowles et al. 2018, *J Sci Med Sport* (systematic review, 17 studies, all rated moderate or weak quality; strength outcomes only, hormonal results conflicting). | Sleep is a readiness input with a small, capped effect (§2.4). *Verification note: the review does not identify a 6 h threshold or a 5% load effect; both are design choices.* |
+| Prescribing hard training only on mornings when HRV sat within or above the athlete's own rolling baseline improved endurance performance more than a fixed plan in two small trials. | Vesterinen et al. 2016, *Med Sci Sports Exerc* (40 recreational runners, 8 weeks; the HRV-guided group did fewer moderate- and high-intensity sessions and improved 3000 m time more than the pre-planned group). Javaloyes et al. 2019, *Int J Sports Physiol Perform* (17 well-trained cyclists, 8 weeks; HRV-guided training improved peak power and 40 km time-trial performance more than traditional periodisation). | HRV and resting heart rate from Health are a readiness input with the same small, capped effect as sleep and soreness (§2.4): a morning more than one SD off the lifter's trailing 7-day baseline makes the day 5% lighter and never heavier. *Verification note: both trials are endurance training, used the natural log of RMSSD with a 7-day rolling average and a smallest-worthwhile-change band, and prescribed intensity rather than load. There is no comparable trial in resistance training. Using SDNN (what Health stores), the one-SD rule, the 4-day minimum, resting heart rate as a second signal and the 5% effect are all design choices.* |
 
 ### 2.2 Data captured per set
 
@@ -89,14 +90,26 @@ available dumbbell step, 1 plate / ~5% on machines. All editable per exercise.
 
 ### 2.4 Readiness
 
-Optional daily check-in: sleep hours (from HealthKit if available), and soreness 1–5 on
-the muscles trained today.
+Optional daily check-in: sleep hours (from HealthKit if available), soreness 1–5 on
+the muscles trained today, and, when turned on in Settings, this morning's heart rate
+variability (SDNN) and resting heart rate read from Health.
 
 - Sleep < 6 h or soreness ≥ 4 on a target muscle → today's prescribed loads × 0.95,
   with a one-line explanation. The rep targets do not change.
+- Heart reading: the baseline is the mean and sample SD of each metric over the 7 days
+  before today, needing at least 4 days with a reading (days without one are skipped,
+  not zero). The morning is low when HRV is more than one SD below its mean or resting
+  heart rate more than one SD above its mean (`HeartRateRule`). Low → the same × 0.95.
+  The reading and the baseline it was judged against are stored on the day's entry and
+  copied to the session, so the flag can be explained after Health's numbers move.
 - The effect is deliberately small and capped at 5%, because the evidence supports
-  "sleep matters" much better than any specific magnitude.
-- Readiness never *raises* loads. It only pulls a bad day back.
+  "sleep matters" and "HRV-guided training can work" much better than any specific
+  magnitude (§2.1). Any one low input makes the day low; they never stack.
+- Readiness never *raises* loads. It only pulls a bad day back. A high HRV or a low
+  resting heart rate changes nothing.
+- Health is read only after the lifter turns the feature on, which is what asks for
+  permission. Health does not say whether reading was allowed; the Today tab just shows
+  that no reading arrived.
 
 ### 2.5 Volume guardrails (per muscle per week)
 
@@ -241,8 +254,8 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
 
 ```
 Exercise          id, name, muscles [(muscle, weight)], repRange, increment, setCount, rpeCap, restSeconds
-WorkoutSession    id, date, programDayId (+ day name for display), readiness (sleepHours, soreness[muscle])
-ReadinessEntry    date (one per day), sleepHours, soreness[muscle]   — today's check-in, copied onto the session
+WorkoutSession    id, date, programDayId (+ day name for display), readiness (sleepHours, soreness[muscle], heart reading + baseline)
+ReadinessEntry    date (one per day), sleepHours, soreness[muscle], hrvMs, restingHeartRate, each metric's baseline mean/SD/days   — today's check-in, copied onto the session
 SetEntry          id, sessionId, exerciseId, order, weight, reps, rpe, isWarmup
 BodyweightEntry   date, kg
 IntakeEntry       id, date, name, kcal, protein, carbs, fat, fibre
@@ -260,7 +273,7 @@ correction fixes everything downstream.
 
 - SwiftUI + SwiftData, iOS 26 target, iCloud sync via CloudKit.
 - Swift Charts for all trend views.
-- HealthKit: read sleep and bodyweight, write workouts.
+- HealthKit: read HRV and resting heart rate (done, opt-in); read sleep and bodyweight, write workouts (planned).
 - No server. No account. Export to CSV from day one.
 
 ---
@@ -290,6 +303,7 @@ DOIs resolve at `https://doi.org/<DOI>`.
 - Helms ER, Aragon AA, Fitschen PJ. (2014). Evidence-based recommendations for natural bodybuilding contest preparation: nutrition and supplementation. *J Int Soc Sports Nutr* 11:20. doi:10.1186/1550-2783-11-20
 - Helms ER, Cronin J, Storey A, Zourdos MC. (2016). Application of the repetitions in reserve-based rating of perceived exertion scale for resistance training. *Strength Cond J* 38(4):42–49. doi:10.1519/SSC.0000000000000218
 - Jaric S. (2002). Muscle strength testing: use of normalisation for body size. *Sports Med* 32(10):615–631. doi:10.2165/00007256-200232100-00002
+- Javaloyes A, Sarabia JM, Lamberts RP, Moya-Ramon M. (2019). Training prescription guided by heart-rate variability in cycling. *Int J Sports Physiol Perform* 14(1):23–32. doi:10.1123/ijspp.2018-0122
 - Knowles OE, Drinkwater EJ, Urwin CM, Lamon S, Aisbett B. (2018). Inadequate sleep and muscle strength: implications for resistance training. *J Sci Med Sport* 21(9):959–968. doi:10.1016/j.jsams.2018.01.012
 - LeSuer DA, McCormick JH, Mayhew JL, Wasserstein RL, Arnold MD. (1997). The accuracy of prediction equations for estimating 1-RM performance in the bench press, squat, and deadlift. *J Strength Cond Res* 11(4):211–213. doi:10.1519/00124278-199711000-00001
 - Morton RW, Murphy KT, McKellar SR, Schoenfeld BJ, Henselmans M, Helms E, et al. (2018). A systematic review, meta-analysis and meta-regression of the effect of protein supplementation on resistance training-induced gains in muscle mass and strength in healthy adults. *Br J Sports Med* 52(6):376–384 (online 2017; erratum 2020). doi:10.1136/bjsports-2017-097608
@@ -304,6 +318,7 @@ DOIs resolve at `https://doi.org/<DOI>`.
 - Schoenfeld BJ, Grgic J, Krieger J. (2019). How many times per week should a muscle be trained to maximize muscle hypertrophy? A systematic review and meta-analysis of studies examining the effects of resistance training frequency. *J Sports Sci* 37(11):1286–1295. doi:10.1080/02640414.2018.1555906
 - Schoenfeld BJ, Pope ZK, Benik FM, Hester GM, Sellers J, Nooner JL, et al. (2016). Longer interset rest periods enhance muscle strength and hypertrophy in resistance-trained men. *J Strength Cond Res* 30(7):1805–1812. doi:10.1519/JSC.0000000000001272
 - Shcherbina A, Mattsson CM, Waggott D, Salisbury H, Christle JW, Hastie T, Wheeler MT, Ashley EA. (2017). Accuracy in wrist-worn, sensor-based measurements of heart rate and energy expenditure in a diverse cohort. *J Pers Med* 7(2):3. doi:10.3390/jpm7020003
+- Vesterinen V, Nummela A, Heikura I, Laine T, Hynynen E, Botella J, Häkkinen K. (2016). Individual endurance training prescription with heart rate variability. *Med Sci Sports Exerc* 48(7):1347–1354. doi:10.1249/MSS.0000000000000910
 - Turicchi J, O'Driscoll R, Horgan G, Duarte C, Palmeira AL, Larsen SC, Heitmann BL, Stubbs RJ. (2020). Weekly, seasonal and holiday body weight fluctuation patterns among individuals engaged in a European multi-centre behavioural weight loss maintenance intervention. *PLOS ONE* 15(4):e0232152. doi:10.1371/journal.pone.0232152
 - Zourdos MC, Klemp A, Dolan C, Quiles JM, Schau KA, Jo E, et al. (2016). Novel resistance training-specific rating of perceived exertion scale measuring repetitions in reserve. *J Strength Cond Res* 30(1):267–275. doi:10.1519/JSC.0000000000001049
 - Zourdos MC, Goldsmith JA, Helms ER, Trepeck C, Halle JL, Mendez KM, et al. (2021). Proximity to failure and total repetitions performed in a set influences accuracy of intraset repetitions in reserve-based rating of perceived exertion. *J Strength Cond Res* 35(S2):S158–S165. doi:10.1519/JSC.0000000000002995

@@ -33,6 +33,8 @@
 	<string>1</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Scan food barcodes to look them up in Open Food Facts.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Reads your heart rate variability and resting heart rate so a morning well below your usual can make today's lifts a little lighter.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UILaunchScreen</key>

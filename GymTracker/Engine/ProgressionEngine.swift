@@ -56,11 +56,16 @@ nonisolated struct Readiness: Hashable, Sendable {
 
     var sleepHours: Double? = nil
     var soreness: [Muscle: Int] = [:]
+    /// This morning's HRV and resting heart rate against the lifter's baseline, from Health.
+    var heart: HeartReadiness? = nil
 
-    var hasAnyInput: Bool { sleepHours != nil || !soreness.isEmpty }
+    var hasAnyInput: Bool { sleepHours != nil || !soreness.isEmpty || heart?.hasReading == true }
 
+    /// Any one low input makes the day low. They never stack, and nothing here raises a load:
+    /// the caller applies the single `loadMultiplier` once.
     func isLow(for muscles: [MuscleWeight]) -> Bool {
         if let sleepHours, sleepHours < Self.sleepThresholdHours { return true }
+        if heart?.isLow == true { return true }
         return muscles.contains { $0.weight >= 0.5 && (soreness[$0.muscle] ?? 0) >= Self.sorenessThreshold }
     }
 }
