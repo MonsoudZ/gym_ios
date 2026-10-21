@@ -66,7 +66,7 @@ enum WidgetBridge {
         guard let day = PlanService.nextDay(in: program, completedSessions: completed) else { return nil }
         let readinessEntries = (try? context.fetch(FetchDescriptor<ReadinessEntry>())) ?? []
         let todayEntry = ReadinessEntry.entry(for: now, in: readinessEntries)
-        let readiness = todayEntry?.isLogged == true ? todayEntry?.readiness : nil
+        let readiness = todayEntry.map(\.readiness).flatMap { $0.hasAnyInput ? $0 : nil }
         let plan = PlanService.plan(day: day, exercises: exercises, completedSessions: completed, readiness: readiness, metric: metric)
         let lines = plan.map { line(for: $0, metric: metric) }
         let headline = plan.first { $0.prescription.stallAction != nil } ?? plan.first { $0.prescription.isNotable } ?? plan.first

@@ -162,6 +162,14 @@ struct WorkoutView: View {
         session.isCompleted = hasLoggedSets
         if !hasLoggedSets { context.delete(session) }
         context.saveOrLog()
+        if hasLoggedSets, settingsList.first?.saveWorkoutsToHealthEnabled == true {
+            let session = session
+            Task {
+                guard let id = await HealthService.saveWorkout(session) else { return }
+                session.healthWorkoutID = id
+                context.saveOrLog()
+            }
+        }
         dismiss()
     }
 }

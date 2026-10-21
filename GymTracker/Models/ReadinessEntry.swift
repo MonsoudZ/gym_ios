@@ -7,6 +7,9 @@ import SwiftData
 final class ReadinessEntry {
     @Attribute(.unique) var date: Date   // start of day
     var sleepHours: Double?
+    /// `sleepHours` came from Health (SleepRule) rather than being typed. Typing over it clears
+    /// this, and Health then leaves the day alone.
+    var sleepFromHealth: Bool = false
     var sorenessByMuscle: [String: Int]
 
     // This morning's Health reading and the baseline it was judged against, written by
@@ -66,9 +69,28 @@ final class ReadinessEntry {
         return Readiness(sleepHours: sleepHours, soreness: soreness, heart: heart)
     }
 
-    /// Something the lifter typed. The Health reading arrives on its own and is not a check-in,
-    /// so an entry holding only that still reads as "not logged".
-    var isLogged: Bool { sleepHours != nil || !sorenessByMuscle.isEmpty }
+    /// Something the lifter typed. Health readings (heart, and sleep when it was filled from
+    /// Health) arrive on their own and are not a check-in, so an entry holding only those still
+    /// reads as "not logged".
+    var isLogged: Bool { (sleepHours != nil && !sleepFromHealth) || !sorenessByMuscle.isEmpty }
+
+    /// Sets the sleep the lifter typed, taking over from a Health value if there was one.
+    func setTypedSleep(_ hours: Double?) {
+        sleepHours = hours
+        sleepFromHealth = false
+    }
+
+    /// Fills sleep from Health unless the lifter has typed a value for the day. Returns whether
+    /// anything changed.
+    @discardableResult
+    func applyHealthSleep(_ hours: Double?) -> Bool {
+        guard sleepHours == nil || sleepFromHealth else { return false }
+        let newValue = hours.map { ($0 * 10).rounded() / 10 }
+        guard sleepHours != newValue || sleepFromHealth != (newValue != nil) else { return false }
+        sleepHours = newValue
+        sleepFromHealth = newValue != nil
+        return true
+    }
 
     /// The entry for the day containing `date`, if any.
     static func entry(for date: Date, in entries: [ReadinessEntry]) -> ReadinessEntry? {

@@ -28,6 +28,38 @@ final class ReadinessEntryTests: XCTestCase {
     }
 
     @MainActor
+    func testHealthSleepFillsTheDayButIsNotACheckInAndTypingWins() {
+        let entry = ReadinessEntry(date: .now)
+        XCTAssertTrue(entry.applyHealthSleep(7.26))
+        XCTAssertEqual(entry.sleepHours, 7.3, "rounded to a tenth, as the field shows it")
+        XCTAssertTrue(entry.sleepFromHealth)
+        XCTAssertFalse(entry.isLogged, "Health filled it; the lifter has not checked in")
+        XCTAssertTrue(entry.readiness.hasAnyInput, "but the plan still uses it")
+        XCTAssertFalse(entry.applyHealthSleep(7.26), "same value again changes nothing")
+
+        // Health's number moves (a late sync): a Health-filled day follows it.
+        XCTAssertTrue(entry.applyHealthSleep(5.5))
+        XCTAssertEqual(entry.sleepHours, 5.5)
+        XCTAssertTrue(entry.readiness.isLow(for: []))
+
+        // The lifter types over it: now it is a check-in and Health leaves it alone.
+        entry.setTypedSleep(8)
+        XCTAssertTrue(entry.isLogged)
+        XCTAssertFalse(entry.sleepFromHealth)
+        XCTAssertFalse(entry.applyHealthSleep(6))
+        XCTAssertEqual(entry.sleepHours, 8)
+
+        // Turning the feature off clears only a Health-filled value.
+        XCTAssertFalse(entry.applyHealthSleep(nil))
+        XCTAssertEqual(entry.sleepHours, 8)
+        let healthOnly = ReadinessEntry(date: .now)
+        healthOnly.applyHealthSleep(7)
+        XCTAssertTrue(healthOnly.applyHealthSleep(nil))
+        XCTAssertNil(healthOnly.sleepHours)
+        XCTAssertFalse(healthOnly.sleepFromHealth)
+    }
+
+    @MainActor
     func testSessionCopiesTheDaysCheckIn() {
         let entry = ReadinessEntry(date: .now, sleepHours: 5.5, soreness: [.quads: 4])
         let session = WorkoutSession(templateDayName: "Lower A", readiness: entry)

@@ -90,9 +90,15 @@ available dumbbell step, 1 plate / ~5% on machines. All editable per exercise.
 
 ### 2.4 Readiness
 
-Optional daily check-in: sleep hours (from HealthKit if available), soreness 1–5 on
-the muscles trained today, and, when turned on in Settings, this morning's heart rate
-variability (SDNN) and resting heart rate read from Health.
+Optional daily check-in: sleep hours, soreness 1–5 on the muscles trained today, and, when
+turned on in Settings, this morning's heart rate variability (SDNN) and resting heart rate
+read from Health.
+
+Sleep can also be filled from Health (off by default; `SleepRule`): the asleep stages between
+18:00 yesterday and 14:00 today, clipped to now, with overlapping samples from two sources
+merged so a night is never counted twice. A value typed by the lifter always wins, and a
+Health-filled sleep on its own is not a check-in: the Today tab still asks. The 18:00 and
+14:00 bounds are design choices (any bedtime, a late lie-in, no afternoon nap).
 
 - Sleep < 6 h or soreness ≥ 4 on a target muscle → today's prescribed loads × 0.95,
   with a one-line explanation. The rep targets do not change.
@@ -158,6 +164,11 @@ name is left alone, edits and all. Custom exercises can still be created from th
 ### 3.2 Adaptive expenditure (the core of the nutrition engine)
 
 Inputs: daily intake (kcal), daily morning bodyweight.
+
+Bodyweight can be filled from Health (off by default; `BodyweightImport`): the earliest sample
+of each day over the last 60 days is the morning weigh-in. A day the lifter typed a weight for
+is never touched; a day Health filled is updated when Health's number for it changes. A smart
+scale that writes to Health then removes the daily typing entirely.
 
 1. **Trend weight.** Exponential moving average, α = 0.1. Today's trend =
    0.1 × today's weight + 0.9 × yesterday's trend.
@@ -279,7 +290,8 @@ correction fixes everything downstream.
 
 - SwiftUI + SwiftData, iOS 26 target, iCloud sync via CloudKit.
 - Swift Charts for all trend views.
-- HealthKit: read HRV and resting heart rate (done, opt-in); read sleep and bodyweight, write workouts (planned).
+- HealthKit, each opt-in in Settings: read HRV and resting heart rate, sleep and bodyweight;
+  write finished workouts as strength training (deleted with the session).
 - No server. No account. Export to CSV from day one.
 
 ---

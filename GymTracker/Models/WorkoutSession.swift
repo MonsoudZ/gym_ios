@@ -21,6 +21,8 @@ final class WorkoutSession {
     var restingHeartRateBaselineSD: Double?
     var restingHeartRateBaselineDays: Int?
     var isCompleted: Bool
+    /// The workout saved to Health for this session, so deleting the session can remove it.
+    var healthWorkoutID: UUID?
     @Relationship(deleteRule: .cascade, inverse: \SetEntry.session) var sets: [SetEntry] = []
 
     init(date: Date = .now, templateDayName: String, sleepHours: Double? = nil, soreness: [Muscle: Int] = [:]) {

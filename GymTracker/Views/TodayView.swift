@@ -41,7 +41,7 @@ struct TodayView: View {
 
     private var sleepHours: Binding<Double?> {
         Binding(get: { todayEntry?.sleepHours },
-                set: { editingReadiness = true; entryForEditing().sleepHours = $0; context.saveOrLog() })
+                set: { editingReadiness = true; entryForEditing().setTypedSleep($0); context.saveOrLog() })
     }
 
     private func isSore(_ muscle: Muscle) -> Binding<Bool> {
@@ -177,6 +177,13 @@ struct TodayView: View {
                         .accessibilityLabel("Sleep last night in hours")
                     Text("h").foregroundStyle(.secondary)
                 }
+                if todayEntry?.sleepFromHealth == true {
+                    Text("From Health. Type over it if it is wrong.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if settings?.sleepFromHealthEnabled == true, todayEntry?.sleepHours == nil {
+                    Text("No sleep in Health for last night yet.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 let muscles = Set(today.plan.flatMap { $0.exercise.muscles.filter { $0.weight >= 0.5 }.map(\.muscle) })
                     .sorted { $0.displayName < $1.displayName }
                 let soreCount = todayEntry?.soreMuscles.count ?? 0
@@ -248,7 +255,7 @@ struct TodayView: View {
 
     private func readinessSummary(_ entry: ReadinessEntry) -> String {
         var parts: [String] = []
-        if let sleep = entry.sleepHours { parts.append("Slept \(Units.number(sleep)) h") }
+        if let sleep = entry.sleepHours { parts.append("Slept \(Units.number(sleep)) h\(entry.sleepFromHealth ? " (Health)" : "")") }
         let sore = entry.soreMuscles.map(\.displayName).sorted()
         if !sore.isEmpty { parts.append("Sore: \(sore.joined(separator: ", "))") }
         return parts.joined(separator: " · ")

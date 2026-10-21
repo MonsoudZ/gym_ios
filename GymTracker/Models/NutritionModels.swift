@@ -5,10 +5,14 @@ import SwiftData
 final class BodyweightEntry {
     @Attribute(.unique) var date: Date   // start of day
     var kg: Double
+    /// Filled in from Health rather than typed. Only these are updated when Health's number
+    /// for the day changes; a typed weight is never overwritten (BodyweightImport).
+    var fromHealth: Bool = false
 
-    init(date: Date, kg: Double) {
+    init(date: Date, kg: Double, fromHealth: Bool = false) {
         self.date = Calendar.current.startOfDay(for: date)
         self.kg = kg
+        self.fromHealth = fromHealth
     }
 }
 
@@ -69,6 +73,14 @@ final class UserSettings {
     /// Reads HRV and resting heart rate from Health as a readiness input (HealthService).
     /// Off until the lifter asks for it, because turning it on is what asks for Health access.
     var heartReadinessEnabled: Bool = false
+    /// Fills last night's sleep on the readiness check-in from Health (SleepRule).
+    var sleepFromHealthEnabled: Bool = false
+    /// Fills days with no typed weigh-in from Health's bodyweight samples (BodyweightImport).
+    var bodyweightFromHealthEnabled: Bool = false
+    /// Saves each finished workout to Health as strength training.
+    var saveWorkoutsToHealthEnabled: Bool = false
+
+    var usesAnyHealthReading: Bool { heartReadinessEnabled || sleepFromHealthEnabled || bodyweightFromHealthEnabled }
 
     init() {
         usesMetric = false

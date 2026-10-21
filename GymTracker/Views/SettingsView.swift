@@ -45,6 +45,18 @@ private struct SettingsForm: View {
                 })
     }
 
+    /// Turning a Health feature on asks for that type's permission (types already decided are
+    /// not asked again) and pulls what it reads; turning one off clears what it had filled in.
+    private func healthToggled(_ on: Bool, revert: @escaping () -> Void) {
+        Task {
+            if on, !(await HealthService.requestAuthorization(for: settings)) {
+                healthAvailable = false
+                revert()
+            }
+            await HealthService.refresh(context: context)
+        }
+    }
+
     var body: some View {
         Form {
             Section {
@@ -181,26 +193,24 @@ private struct SettingsForm: View {
             .onChange(of: settings.reminderMinutes) { _, _ in LogReminders.refresh(context: context) }
 
             Section {
-                Toggle("Heart rate from Health", isOn: $settings.heartReadinessEnabled)
-                    .disabled(!healthAvailable)
+                Toggle("Heart rate", isOn: $settings.heartReadinessEnabled)
+                Toggle("Sleep", isOn: $settings.sleepFromHealthEnabled)
+                Toggle("Bodyweight", isOn: $settings.bodyweightFromHealthEnabled)
+                Toggle("Save workouts", isOn: $settings.saveWorkoutsToHealthEnabled)
                 if !healthAvailable {
                     Text("Health is not available on this device.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
             } header: {
-                Text("Readiness")
+                Text("Health")
             } footer: {
-                Text("Reads heart rate variability and resting heart rate. A morning clearly below your own 7-day baseline makes today 5% lighter, the same as short sleep or soreness. It never makes a day heavier.")
+                Text("Heart rate reads HRV and resting heart rate; a morning clearly below your own 7-day baseline makes today 5% lighter, the same as short sleep or soreness, and never heavier. Sleep fills last night's hours on the check-in; what you type wins. Bodyweight fills days you did not weigh in here, from the last \(HealthService.bodyweightLookbackDays) days. Finished workouts are saved as strength training.")
             }
-            .onChange(of: settings.heartReadinessEnabled) { _, on in
-                Task {
-                    if on, !(await HealthService.requestAuthorization()) {
-                        healthAvailable = false
-                        settings.heartReadinessEnabled = false
-                    }
-                    await HealthService.refresh(context: context)
-                }
-            }
+            .disabled(!healthAvailable)
+            .onChange(of: settings.heartReadinessEnabled) { _, on in healthToggled(on) { settings.heartReadinessEnabled = false } }
+            .onChange(of: settings.sleepFromHealthEnabled) { _, on in healthToggled(on) { settings.sleepFromHealthEnabled = false } }
+            .onChange(of: settings.bodyweightFromHealthEnabled) { _, on in healthToggled(on) { settings.bodyweightFromHealthEnabled = false } }
+            .onChange(of: settings.saveWorkoutsToHealthEnabled) { _, on in healthToggled(on) { settings.saveWorkoutsToHealthEnabled = false } }
 
             Section("Data") {
                 Button("Load demo data (8 weeks)") {

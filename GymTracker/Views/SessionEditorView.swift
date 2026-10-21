@@ -90,6 +90,7 @@ struct SessionEditorView: View {
 
     private func deleteSession() {
         deleted = true
+        removeFromHealth()
         context.delete(session)
         context.saveOrLog()
         dismiss()
@@ -101,8 +102,15 @@ struct SessionEditorView: View {
         guard !deleted else { return }
         for set in session.sets where set.reps <= 0 { context.delete(set) }
         if session.sets.allSatisfy({ $0.reps <= 0 }) {
+            removeFromHealth()
             context.delete(session)
         }
         context.saveOrLog()
+    }
+
+    /// A session that was saved to Health takes its workout with it.
+    private func removeFromHealth() {
+        guard let id = session.healthWorkoutID else { return }
+        Task { await HealthService.deleteWorkout(id: id) }
     }
 }
