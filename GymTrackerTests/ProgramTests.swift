@@ -81,7 +81,7 @@ final class ProgramTests: XCTestCase {
 
     @MainActor
     func testCustomExerciseDefaultsToPoundStep() {
-        let exercise = Exercise(name: "Cable Fly", metric: false)
+        let exercise = Exercise(name: "Landmine Press", metric: false)
         XCTAssertEqual(Units.lb(fromKg: exercise.increment), 5, accuracy: 0.0001)
         XCTAssertFalse(exercise.isFromLibrary)
         XCTAssertTrue(Exercise(spec: ExerciseLibrary.all[0]).isFromLibrary)

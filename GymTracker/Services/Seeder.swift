@@ -7,6 +7,7 @@ enum Seeder {
     static func prepare(context: ModelContext) {
         seedIfNeeded(context: context)
         migrate(context: context)
+        addMissingLibraryExercises(context: context)
         ensurePrograms(context: context)
     }
 
@@ -21,6 +22,22 @@ enum Seeder {
             context.insert(exercise)
         }
         context.saveOrLog()
+    }
+
+    /// Inserts any library exercise the store does not have yet, so an install made before the
+    /// library grew still gets the new ones. Matched by name: an exercise the lifter already
+    /// created or renamed to a library name is left alone, custom settings and all.
+    static func addMissingLibraryExercises(context: ModelContext) {
+        let existing = Set(((try? context.fetch(FetchDescriptor<Exercise>())) ?? []).map(\.name))
+        let metric = (try? context.fetch(FetchDescriptor<UserSettings>()).first?.usesMetric) ?? true
+        var added = false
+        for spec in ExerciseLibrary.all where !existing.contains(spec.name) {
+            let exercise = Exercise(spec: spec)
+            exercise.increment = ExerciseLibrary.increment(forKg: spec.increment, metric: metric)
+            context.insert(exercise)
+            added = true
+        }
+        if added { context.saveOrLog() }
     }
 
     /// Repairs for installs created before exercises had ids and program days referred to them by id.

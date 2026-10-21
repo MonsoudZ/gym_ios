@@ -134,6 +134,12 @@ Shipped defaults, all hitting each muscle ≥ 2×/week:
 Each template is just a list of exercises with rep ranges, set counts and increments.
 The engine is the same for all of them, so you can edit freely.
 
+**Exercise library.** About 95 exercises ship with the app, grouped by main muscle in the
+picker, each with muscle weightings, a rep range by its role (3–6 heavy barbell, 6–12
+compound, 12–20 isolation) and a plate-step increment. Entries added to the library in a
+later version are inserted on launch; an exercise the lifter already has under the same
+name is left alone, edits and all. Custom exercises can still be created from the picker.
+
 ---
 
 ## 3. Nutrition

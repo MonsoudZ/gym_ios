@@ -29,6 +29,12 @@ nonisolated enum ExerciseLibrary {
         ExerciseSpec(name: name, muscles: muscles, repRangeLow: low, repRangeHigh: high, setCount: sets, increment: inc)
     }
 
+    /// Grouped by the muscle each exercise mainly trains. Rep ranges follow DESIGN.md §2.1:
+    /// 3–6 for heavy barbell strength work, 6–12 for compound hypertrophy work, 12–20 for
+    /// isolation. Increments are in kg: 2.5 for upper-body barbells, 5 for lower-body barbells,
+    /// 2 for dumbbells (1 for the small ones), 2.5 for cable stacks and most machines, 5 or 10
+    /// for the big leg machines. Bodyweight lifts (pull-ups, dips) use the added-weight step.
+    /// The first 21 are the originals the built-in splits are made from; keep them unchanged.
     static let all: [ExerciseSpec] = [
         ex("Barbell Bench Press", [m(.chest), m(.triceps, 0.5), m(.frontDelt, 0.5)], 6, 8, inc: 2.5),
         ex("Incline Dumbbell Press", [m(.chest), m(.frontDelt, 0.5), m(.triceps, 0.5)], 8, 12, inc: 2),
@@ -51,6 +57,96 @@ nonisolated enum ExerciseLibrary {
         ex("Hip Thrust", [m(.glutes), m(.hamstrings, 0.5)], 8, 12, inc: 5),
         ex("Standing Calf Raise", [m(.calves)], 10, 15, sets: 4, inc: 5),
         ex("Cable Crunch", [m(.abs)], 10, 15, inc: 2.5),
+
+        // Chest
+        ex("Incline Barbell Bench Press", [m(.chest), m(.frontDelt, 0.5), m(.triceps, 0.5)], 6, 10, inc: 2.5),
+        ex("Close-Grip Bench Press", [m(.triceps), m(.chest, 0.5), m(.frontDelt, 0.5)], 6, 10, inc: 2.5),
+        ex("Flat Dumbbell Press", [m(.chest), m(.triceps, 0.5), m(.frontDelt, 0.5)], 8, 12, inc: 2),
+        ex("Machine Chest Press", [m(.chest), m(.triceps, 0.5), m(.frontDelt, 0.5)], 8, 12, inc: 5),
+        ex("Smith Machine Bench Press", [m(.chest), m(.triceps, 0.5), m(.frontDelt, 0.5)], 6, 10, inc: 2.5),
+        ex("Dip", [m(.chest), m(.triceps), m(.frontDelt, 0.5)], 6, 12, inc: 2.5),
+        ex("Push-Up", [m(.chest), m(.triceps, 0.5), m(.frontDelt, 0.5)], 10, 20, inc: 2.5),
+        ex("Cable Fly", [m(.chest)], 12, 20, inc: 2.5),
+        ex("Pec Deck", [m(.chest)], 12, 20, inc: 2.5),
+        ex("Dumbbell Fly", [m(.chest)], 12, 15, inc: 2),
+
+        // Back
+        ex("Pull-Up", [m(.lats), m(.upperBack, 0.5), m(.biceps, 0.5)], 5, 10, inc: 2.5),
+        ex("Chin-Up", [m(.lats), m(.biceps), m(.upperBack, 0.5)], 5, 10, inc: 2.5),
+        ex("Pendlay Row", [m(.upperBack), m(.lats), m(.rearDelt, 0.5), m(.biceps, 0.5)], 5, 8, inc: 2.5),
+        ex("T-Bar Row", [m(.upperBack), m(.lats), m(.biceps, 0.5)], 8, 12, inc: 5),
+        ex("Chest-Supported Row", [m(.upperBack), m(.lats, 0.5), m(.rearDelt, 0.5), m(.biceps, 0.5)], 8, 12, inc: 2),
+        ex("Machine Row", [m(.upperBack), m(.lats, 0.5), m(.biceps, 0.5)], 10, 12, inc: 5),
+        ex("Close-Grip Lat Pulldown", [m(.lats), m(.biceps, 0.5), m(.upperBack, 0.5)], 8, 12, inc: 2.5),
+        ex("Straight-Arm Pulldown", [m(.lats)], 12, 15, inc: 2.5),
+        ex("Rack Pull", [m(.upperBack), m(.lowerBack), m(.glutes, 0.5), m(.hamstrings, 0.5)], 3, 6, sets: 2, inc: 5),
+        ex("Back Extension", [m(.lowerBack), m(.glutes, 0.5), m(.hamstrings, 0.5)], 10, 15, inc: 2.5),
+        ex("Barbell Shrug", [m(.upperBack)], 10, 15, inc: 5),
+        ex("Dumbbell Shrug", [m(.upperBack)], 12, 15, inc: 2),
+
+        // Shoulders
+        ex("Seated Barbell Press", [m(.frontDelt), m(.sideDelt, 0.5), m(.triceps, 0.5)], 6, 10, inc: 2.5),
+        ex("Arnold Press", [m(.frontDelt), m(.sideDelt, 0.5), m(.triceps, 0.5)], 8, 12, inc: 2),
+        ex("Machine Shoulder Press", [m(.frontDelt), m(.sideDelt, 0.5), m(.triceps, 0.5)], 8, 12, inc: 5),
+        ex("Cable Lateral Raise", [m(.sideDelt)], 12, 20, inc: 1),
+        ex("Machine Lateral Raise", [m(.sideDelt)], 12, 20, inc: 2.5),
+        ex("Upright Row", [m(.sideDelt), m(.upperBack, 0.5), m(.biceps, 0.5)], 10, 15, inc: 2.5),
+        ex("Reverse Pec Deck", [m(.rearDelt), m(.upperBack, 0.5)], 12, 20, inc: 2.5),
+        ex("Rear Delt Fly", [m(.rearDelt), m(.upperBack, 0.5)], 12, 20, inc: 1),
+        ex("Front Raise", [m(.frontDelt)], 12, 15, inc: 1),
+
+        // Arms
+        ex("Dumbbell Curl", [m(.biceps)], 8, 12, inc: 1),
+        ex("Incline Dumbbell Curl", [m(.biceps)], 10, 15, inc: 1),
+        ex("Hammer Curl", [m(.biceps), m(.forearms, 0.5)], 8, 12, inc: 1),
+        ex("Preacher Curl", [m(.biceps)], 8, 12, inc: 1.25),
+        ex("Cable Curl", [m(.biceps)], 10, 15, inc: 2.5),
+        ex("EZ-Bar Curl", [m(.biceps)], 8, 12, inc: 1.25),
+        ex("Machine Curl", [m(.biceps)], 10, 15, inc: 2.5),
+        ex("Skull Crusher", [m(.triceps)], 8, 12, inc: 1.25),
+        ex("Overhead Triceps Extension", [m(.triceps)], 10, 15, inc: 2.5),
+        ex("Rope Pushdown", [m(.triceps)], 12, 15, inc: 2.5),
+        ex("Dumbbell Kickback", [m(.triceps)], 12, 20, inc: 1),
+        ex("Wrist Curl", [m(.forearms)], 12, 20, inc: 1.25),
+        ex("Reverse Curl", [m(.forearms), m(.biceps, 0.5)], 10, 15, inc: 1.25),
+
+        // Quads
+        ex("Front Squat", [m(.quads), m(.glutes, 0.5), m(.upperBack, 0.5)], 4, 6, inc: 5),
+        ex("Hack Squat", [m(.quads), m(.glutes, 0.5)], 8, 12, inc: 5),
+        ex("Smith Machine Squat", [m(.quads), m(.glutes), m(.lowerBack, 0.5)], 6, 10, inc: 5),
+        ex("Goblet Squat", [m(.quads), m(.glutes, 0.5)], 10, 15, inc: 2),
+        ex("Bulgarian Split Squat", [m(.quads), m(.glutes)], 8, 12, inc: 2),
+        ex("Walking Lunge", [m(.quads), m(.glutes)], 10, 15, inc: 2),
+        ex("Step-Up", [m(.quads), m(.glutes)], 10, 15, inc: 2),
+        ex("Sissy Squat", [m(.quads)], 10, 15, inc: 2.5),
+
+        // Hamstrings and glutes
+        ex("Sumo Deadlift", [m(.glutes), m(.hamstrings), m(.quads, 0.5), m(.lowerBack, 0.5), m(.upperBack, 0.5)], 3, 5, sets: 2, inc: 5),
+        ex("Trap Bar Deadlift", [m(.quads), m(.glutes), m(.hamstrings), m(.lowerBack, 0.5), m(.upperBack, 0.5)], 4, 6, sets: 2, inc: 5),
+        ex("Stiff-Leg Deadlift", [m(.hamstrings), m(.glutes), m(.lowerBack, 0.5)], 6, 10, inc: 5),
+        ex("Dumbbell Romanian Deadlift", [m(.hamstrings), m(.glutes), m(.lowerBack, 0.5)], 8, 12, inc: 2),
+        ex("Good Morning", [m(.hamstrings), m(.lowerBack), m(.glutes, 0.5)], 8, 12, inc: 2.5),
+        ex("Seated Leg Curl", [m(.hamstrings)], 10, 15, inc: 2.5),
+        ex("Nordic Curl", [m(.hamstrings)], 5, 10, inc: 2.5),
+        ex("Glute-Ham Raise", [m(.hamstrings), m(.glutes, 0.5)], 6, 12, inc: 2.5),
+        ex("Cable Pull-Through", [m(.glutes), m(.hamstrings, 0.5)], 12, 15, inc: 2.5),
+        ex("Glute Bridge", [m(.glutes), m(.hamstrings, 0.5)], 10, 15, inc: 5),
+        ex("Machine Hip Thrust", [m(.glutes), m(.hamstrings, 0.5)], 8, 12, inc: 5),
+        ex("Hip Abduction", [m(.glutes)], 12, 20, inc: 2.5),
+        ex("Kettlebell Swing", [m(.glutes), m(.hamstrings), m(.lowerBack, 0.5)], 10, 20, inc: 2),
+
+        // Calves
+        ex("Seated Calf Raise", [m(.calves)], 12, 20, sets: 4, inc: 2.5),
+        ex("Leg Press Calf Raise", [m(.calves)], 10, 15, sets: 4, inc: 10),
+        ex("Donkey Calf Raise", [m(.calves)], 10, 15, sets: 4, inc: 5),
+
+        // Abs
+        ex("Hanging Leg Raise", [m(.abs)], 8, 15, inc: 2.5),
+        ex("Hanging Knee Raise", [m(.abs)], 10, 20, inc: 2.5),
+        ex("Ab Wheel Rollout", [m(.abs)], 8, 15, inc: 2.5),
+        ex("Machine Crunch", [m(.abs)], 10, 15, inc: 2.5),
+        ex("Decline Sit-Up", [m(.abs)], 10, 20, inc: 2.5),
+        ex("Pallof Press", [m(.abs)], 10, 15, inc: 2.5),
     ]
 
     static func spec(_ name: String) -> ExerciseSpec? {

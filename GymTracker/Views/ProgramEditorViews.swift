@@ -216,6 +216,23 @@ struct ExerciseSummaryRow: View {
 
 // MARK: - Pick exercises (library or new)
 
+/// Exercises bucketed by their main muscle, in `Muscle` declaration order, "Other" last.
+struct ExerciseGroup {
+    var title: String
+    var exercises: [Exercise]
+
+    static func grouping(_ exercises: [Exercise]) -> [ExerciseGroup] {
+        var byMuscle: [Muscle?: [Exercise]] = [:]
+        for exercise in exercises { byMuscle[exercise.primaryMuscle, default: []].append(exercise) }
+        var groups = Muscle.allCases.compactMap { muscle -> ExerciseGroup? in
+            guard let list = byMuscle[muscle] else { return nil }
+            return ExerciseGroup(title: muscle.displayName, exercises: list)
+        }
+        if let other = byMuscle[Muscle?.none] { groups.append(ExerciseGroup(title: "Other", exercises: other)) }
+        return groups
+    }
+}
+
 /// Pushed from a day. Tapping a row adds it to the day at once and ticks it; tapping again
 /// removes it, so several exercises can be added without leaving the screen.
 struct ExercisePickerView: View {
@@ -235,6 +252,13 @@ struct ExercisePickerView: View {
             || $0.muscles.contains { $0.muscle.displayName.lowercased().contains(q) } }
     }
 
+    /// One section per main muscle, in the order `Muscle` declares them (chest, back, shoulders,
+    /// arms, legs, abs), so a list of a hundred exercises stays scannable without searching.
+    /// Custom exercises with no muscle set come last under "Other".
+    private var grouped: [ExerciseGroup] {
+        ExerciseGroup.grouping(filtered)
+    }
+
     var body: some View {
         List {
             Section {
@@ -242,27 +266,27 @@ struct ExercisePickerView: View {
                     newExercise = Exercise(name: query.trimmingCharacters(in: .whitespaces), metric: metric)
                 }
             }
-            Section {
-                ForEach(filtered, id: \.persistentModelID) { exercise in
-                    let added = day.exerciseIDs.contains(exercise.id)
-                    Button { toggle(exercise) } label: {
-                        HStack {
-                            ExerciseSummaryRow(exercise: exercise, metric: metric)
-                            Spacer()
-                            Image(systemName: added ? "checkmark.circle.fill" : "plus.circle")
-                                .foregroundStyle(added ? Color.green : Color.accentColor)
-                                .contentTransition(.symbolEffect(.replace))
+            ForEach(grouped, id: \.title) { group in
+                Section(group.title) {
+                    ForEach(group.exercises, id: \.persistentModelID) { exercise in
+                        let added = day.exerciseIDs.contains(exercise.id)
+                        Button { toggle(exercise) } label: {
+                            HStack {
+                                ExerciseSummaryRow(exercise: exercise, metric: metric)
+                                Spacer()
+                                Image(systemName: added ? "checkmark.circle.fill" : "plus.circle")
+                                    .foregroundStyle(added ? Color.green : Color.accentColor)
+                                    .contentTransition(.symbolEffect(.replace))
+                            }
                         }
+                        .foregroundStyle(.primary)
+                        .accessibilityLabel(added ? "\(exercise.name), added. Double tap to remove." : "Add \(exercise.name)")
                     }
-                    .foregroundStyle(.primary)
-                    .accessibilityLabel(added ? "\(exercise.name), added. Double tap to remove." : "Add \(exercise.name)")
                 }
-            } header: {
-                Text(day.exerciseIDs.isEmpty ? "Library" : "Library · \(day.exerciseIDs.count) in \(day.name)")
             }
         }
         .searchable(text: $query, prompt: "Search by name or muscle")
-        .navigationTitle("Add to \(day.name)")
+        .navigationTitle(day.exerciseIDs.isEmpty ? "Add to \(day.name)" : "\(day.name) · \(day.exerciseIDs.count) added")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $newExercise) { exercise in
             NavigationStack {
