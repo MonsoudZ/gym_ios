@@ -172,6 +172,7 @@ struct ExerciseProgressView: View {
     @Query(filter: #Predicate<WorkoutSession> { $0.isCompleted }) private var completedSessions: [WorkoutSession]
     @Query(sort: \BodyweightEntry.date) private var weights: [BodyweightEntry]
     @State private var chartMode: ChartMode = .absolute
+    @State private var showingGuide = false
 
     private var metric: Bool { settingsList.first?.usesMetric ?? true }
 
@@ -276,6 +277,12 @@ struct ExerciseProgressView: View {
         }
         .navigationTitle(exercise.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Guide", systemImage: "info.circle") { showingGuide = true }
+            }
+        }
+        .sheet(isPresented: $showingGuide) { ExerciseGuideSheet(exercise: exercise) }
     }
 
     private func display(_ kg: Double) -> Double { metric ? kg : kg * Units.lbPerKg }

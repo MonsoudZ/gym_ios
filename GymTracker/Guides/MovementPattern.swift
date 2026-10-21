@@ -1,0 +1,205 @@
+import Foundation
+
+/// The movement a library exercise follows, drawn as a two-frame stick figure (side view,
+/// facing right) in `MovementDiagram`. Frame 1 to frame 2 is the lifting phase.
+nonisolated enum MovementPattern: String, CaseIterable, Hashable, Sendable {
+    case benchPress, inclinePress, overheadPress, dip, pushUp, fly, bentRow, supportedRow, verticalPull, straightArmPulldown, deadlift, hinge, backExtension, shrug, lateralRaise, frontRaise, rearDeltFly, uprightRow, curl, overheadExtension, pushdown, skullCrusher, kickback, wristCurl, squat, frontSquat, legPress, lunge, sissySquat, legExtension, legCurl, seatedLegCurl, nordic, hipThrust, gluteBridge, hipAbduction, calfRaise, seatedCalfRaise, crunch, sitUp, legRaise, abWheel, pallofPress
+
+    /// Both frames, in a 0...100 square. The poses are schematic: they show which joints move
+    /// and in which direction, not exact angles.
+    var frames: (start: FigurePose, finish: FigurePose) {
+        switch self {
+        case .benchPress:
+            (FigurePose(hip: CGPoint(x: 36, y: 58), torso: 90, thigh: 230, shin: 180, arm: 200, forearm: 0, props: [.floor(y: 92), .bench(x1: 20, x2: 68, y: 60), .plate]),
+             FigurePose(hip: CGPoint(x: 36, y: 58), torso: 90, thigh: 230, shin: 180, arm: 0, forearm: 0, props: [.floor(y: 92), .bench(x1: 20, x2: 68, y: 60), .plate]))
+        case .inclinePress:
+            (FigurePose(hip: CGPoint(x: 30, y: 62), torso: 40, thigh: 210, shin: 180, arm: 200, forearm: 40, props: [.floor(y: 92), .support(x1: 26, y1: 68, x2: 50, y2: 40), .support(x1: 26, y1: 68, x2: 36, y2: 68), .plate]),
+             FigurePose(hip: CGPoint(x: 30, y: 62), torso: 40, thigh: 210, shin: 180, arm: 40, forearm: 40, props: [.floor(y: 92), .support(x1: 26, y1: 68, x2: 50, y2: 40), .support(x1: 26, y1: 68, x2: 36, y2: 68), .plate]))
+        case .overheadPress:
+            (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 160, forearm: 340, props: [.floor(y: 92), .plate]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 0, forearm: 0, props: [.floor(y: 92), .plate]))
+        case .dip:
+            (FigurePose(hip: CGPoint(x: 46, y: 58), torso: 15, thigh: 200, shin: 250, arm: 280, forearm: 170, props: [.floor(y: 92), .post]),
+             FigurePose(hip: CGPoint(x: 46, y: 48), torso: 8, thigh: 190, shin: 240, arm: 180, forearm: 180, props: [.floor(y: 92), .post]))
+        case .pushUp:
+            (FigurePose(hip: CGPoint(x: 36, y: 84), torso: 88, thigh: 268, shin: 268, arm: 300, forearm: 170, props: [.floor(y: 92)]),
+             FigurePose(hip: CGPoint(x: 36, y: 72), torso: 72, thigh: 250, shin: 250, arm: 175, forearm: 175, props: [.floor(y: 92)]))
+        case .fly:
+            (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 90, forearm: 90, props: [.floor(y: 92), .cable(x: 95, y: 30), .plateSmall]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 60, forearm: 110, props: [.floor(y: 92), .cable(x: 95, y: 30), .plateSmall]))
+        case .bentRow:
+            (FigurePose(hip: CGPoint(x: 40, y: 58), torso: 60, thigh: 170, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .plate]),
+             FigurePose(hip: CGPoint(x: 40, y: 58), torso: 60, thigh: 170, shin: 180, arm: 250, forearm: 120, props: [.floor(y: 92), .plate]))
+        case .supportedRow:
+            (FigurePose(hip: CGPoint(x: 36, y: 62), torso: 40, thigh: 160, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .support(x1: 33, y1: 73, x2: 63, y2: 47), .support(x1: 52, y1: 62, x2: 52, y2: 92), .plateSmall]),
+             FigurePose(hip: CGPoint(x: 36, y: 62), torso: 40, thigh: 160, shin: 180, arm: 250, forearm: 120, props: [.floor(y: 92), .support(x1: 33, y1: 73, x2: 63, y2: 47), .support(x1: 52, y1: 62, x2: 52, y2: 92), .plateSmall]))
+        case .verticalPull:
+            (FigurePose(hip: CGPoint(x: 46, y: 64), torso: 0, thigh: 180, shin: 250, arm: 0, forearm: 0, props: [.barOverhead(y: 17)]),
+             FigurePose(hip: CGPoint(x: 46, y: 40), torso: 5, thigh: 180, shin: 250, arm: 190, forearm: 340, props: [.barOverhead(y: 17)]))
+        case .straightArmPulldown:
+            (FigurePose(hip: CGPoint(x: 44, y: 56), torso: 15, thigh: 180, shin: 180, arm: 50, forearm: 50, props: [.floor(y: 92), .cable(x: 92, y: 8), .plateSmall]),
+             FigurePose(hip: CGPoint(x: 44, y: 56), torso: 15, thigh: 180, shin: 180, arm: 150, forearm: 150, props: [.floor(y: 92), .cable(x: 92, y: 8), .plateSmall]))
+        case .deadlift:
+            (FigurePose(hip: CGPoint(x: 34, y: 64), torso: 60, thigh: 140, shin: 175, arm: 160, forearm: 160, props: [.floor(y: 92), .plate]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .plate]))
+        case .hinge:
+            (FigurePose(hip: CGPoint(x: 40, y: 58), torso: 75, thigh: 175, shin: 180, arm: 160, forearm: 160, props: [.floor(y: 92), .plate]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .plate]))
+        case .backExtension:
+            (FigurePose(hip: CGPoint(x: 44, y: 56), torso: 110, thigh: 170, shin: 180, arm: 170, forearm: 170, props: [.floor(y: 92), .box(x: 36, y: 58, w: 14, h: 34), .support(x1: 20, y1: 92, x2: 50, y2: 66)]),
+             FigurePose(hip: CGPoint(x: 44, y: 56), torso: 60, thigh: 170, shin: 180, arm: 170, forearm: 170, props: [.floor(y: 92), .box(x: 36, y: 58, w: 14, h: 34), .support(x1: 20, y1: 92, x2: 50, y2: 66)]))
+        case .shrug:
+            (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .plate]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .plate, .shrugUp]))
+        case .lateralRaise:
+            (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 175, forearm: 175, props: [.floor(y: 92), .dumbbell]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 90, forearm: 90, props: [.floor(y: 92), .dumbbell]))
+        case .frontRaise:
+            (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 170, forearm: 170, props: [.floor(y: 92), .dumbbell]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 90, forearm: 90, props: [.floor(y: 92), .dumbbell]))
+        case .rearDeltFly:
+            (FigurePose(hip: CGPoint(x: 40, y: 58), torso: 60, thigh: 170, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .dumbbell]),
+             FigurePose(hip: CGPoint(x: 40, y: 58), torso: 60, thigh: 170, shin: 180, arm: 290, forearm: 290, props: [.floor(y: 92), .dumbbell]))
+        case .uprightRow:
+            (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .plate]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 90, forearm: 300, props: [.floor(y: 92), .plate]))
+        case .curl:
+            (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .plate]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 30, props: [.floor(y: 92), .plate]))
+        case .overheadExtension:
+            (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 0, forearm: 0, props: [.floor(y: 92), .dumbbell]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 0, forearm: 230, props: [.floor(y: 92), .dumbbell]))
+        case .pushdown:
+            (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 30, props: [.floor(y: 92), .cable(x: 70, y: 4), .plateSmall]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 120, props: [.floor(y: 92), .cable(x: 70, y: 4), .plateSmall]))
+        case .skullCrusher:
+            (FigurePose(hip: CGPoint(x: 36, y: 58), torso: 90, thigh: 230, shin: 180, arm: 0, forearm: 0, props: [.floor(y: 92), .bench(x1: 20, x2: 68, y: 60), .plate]),
+             FigurePose(hip: CGPoint(x: 36, y: 58), torso: 90, thigh: 230, shin: 180, arm: 350, forearm: 250, props: [.floor(y: 92), .bench(x1: 20, x2: 68, y: 60), .plate]))
+        case .kickback:
+            (FigurePose(hip: CGPoint(x: 40, y: 58), torso: 60, thigh: 170, shin: 180, arm: 250, forearm: 180, props: [.floor(y: 92), .dumbbell]),
+             FigurePose(hip: CGPoint(x: 40, y: 58), torso: 60, thigh: 170, shin: 180, arm: 250, forearm: 250, props: [.floor(y: 92), .dumbbell]))
+        case .wristCurl:
+            (FigurePose(hip: CGPoint(x: 44, y: 62), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 100, props: [.floor(y: 92), .box(x: 40, y: 78, w: 22, h: 14), .plate]),
+             FigurePose(hip: CGPoint(x: 44, y: 62), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 80, props: [.floor(y: 92), .box(x: 40, y: 78, w: 22, h: 14), .plate]))
+        case .squat:
+            (FigurePose(hip: CGPoint(x: 38, y: 66), torso: 30, thigh: 95, shin: 190, arm: 300, forearm: 20, props: [.floor(y: 92), .plate]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 300, forearm: 20, props: [.floor(y: 92), .plate]))
+        case .frontSquat:
+            (FigurePose(hip: CGPoint(x: 42, y: 66), torso: 10, thigh: 100, shin: 190, arm: 100, forearm: 0, props: [.floor(y: 92), .plate]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 100, forearm: 0, props: [.floor(y: 92), .plate]))
+        case .legPress:
+            (FigurePose(hip: CGPoint(x: 40, y: 66), torso: 315, thigh: 40, shin: 100, arm: 90, forearm: 150, props: [.support(x1: 46, y1: 74, x2: 12, y2: 40), .box(x: 10, y: 80, w: 40, h: 6), .support(x1: 74, y1: 42, x2: 68, y2: 72)]),
+             FigurePose(hip: CGPoint(x: 40, y: 66), torso: 315, thigh: 60, shin: 70, arm: 90, forearm: 150, props: [.support(x1: 46, y1: 74, x2: 12, y2: 40), .box(x: 10, y: 80, w: 40, h: 6), .support(x1: 80, y1: 36, x2: 72, y2: 68)]))
+        case .lunge:
+            (FigurePose(hip: CGPoint(x: 44, y: 66), torso: 5, thigh: 90, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .dumbbell]),
+             FigurePose(hip: CGPoint(x: 44, y: 52), torso: 5, thigh: 160, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .dumbbell]))
+        case .sissySquat:
+            (FigurePose(hip: CGPoint(x: 50, y: 56), torso: 340, thigh: 100, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92)]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92)]))
+        case .legExtension:
+            (FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92)]),
+             FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 90, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92)]))
+        case .legCurl:
+            (FigurePose(hip: CGPoint(x: 44, y: 66), torso: 270, thigh: 90, shin: 90, arm: 270, forearm: 180, props: [.floor(y: 92), .bench(x1: 16, x2: 78, y: 68)]),
+             FigurePose(hip: CGPoint(x: 44, y: 66), torso: 270, thigh: 90, shin: 10, arm: 270, forearm: 180, props: [.floor(y: 92), .bench(x1: 16, x2: 78, y: 68)]))
+        case .seatedLegCurl:
+            (FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 90, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92)]),
+             FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 170, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92)]))
+        case .nordic:
+            (FigurePose(hip: CGPoint(x: 44, y: 66), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 120, props: [.floor(y: 92), .box(x: 66, y: 86, w: 14, h: 6)]),
+             FigurePose(hip: CGPoint(x: 44, y: 66), torso: 70, thigh: 90, shin: 180, arm: 160, forearm: 110, props: [.floor(y: 92), .box(x: 66, y: 86, w: 14, h: 6)]))
+        case .hipThrust:
+            (FigurePose(hip: CGPoint(x: 44, y: 82), torso: 304, thigh: 60, shin: 180, arm: 120, forearm: 120, props: [.floor(y: 92), .box(x: 8, y: 70, w: 20, h: 22), .plate]),
+             FigurePose(hip: CGPoint(x: 44, y: 72), torso: 276, thigh: 90, shin: 180, arm: 100, forearm: 90, props: [.floor(y: 92), .box(x: 8, y: 70, w: 20, h: 22), .plate]))
+        case .gluteBridge:
+            (FigurePose(hip: CGPoint(x: 48, y: 84), torso: 265, thigh: 56, shin: 180, arm: 120, forearm: 120, props: [.floor(y: 92), .plate]),
+             FigurePose(hip: CGPoint(x: 48, y: 74), torso: 250, thigh: 80, shin: 180, arm: 110, forearm: 110, props: [.floor(y: 92), .plate]))
+        case .hipAbduction:
+            (FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92)]),
+             FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 60, shin: 180, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92)]))
+        case .calfRaise:
+            (FigurePose(hip: CGPoint(x: 46, y: 52), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .box(x: 36, y: 86, w: 20, h: 6), .dumbbell]),
+             FigurePose(hip: CGPoint(x: 46, y: 48), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .box(x: 36, y: 86, w: 20, h: 6), .dumbbell]))
+        case .seatedCalfRaise:
+            (FigurePose(hip: CGPoint(x: 44, y: 62), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 100, props: [.floor(y: 92), .box(x: 36, y: 84, w: 34, h: 8), .support(x1: 60, y1: 70, x2: 70, y2: 70)]),
+             FigurePose(hip: CGPoint(x: 44, y: 58), torso: 0, thigh: 90, shin: 175, arm: 180, forearm: 100, props: [.floor(y: 92), .box(x: 36, y: 84, w: 34, h: 8), .support(x1: 60, y1: 70, x2: 70, y2: 70)]))
+        case .crunch:
+            (FigurePose(hip: CGPoint(x: 44, y: 70), torso: 0, thigh: 90, shin: 180, arm: 20, forearm: 340, props: [.floor(y: 92), .cable(x: 92, y: 6), .plateSmall]),
+             FigurePose(hip: CGPoint(x: 44, y: 70), torso: 45, thigh: 90, shin: 180, arm: 45, forearm: 0, props: [.floor(y: 92), .cable(x: 92, y: 6), .plateSmall]))
+        case .sitUp:
+            (FigurePose(hip: CGPoint(x: 40, y: 70), torso: 275, thigh: 60, shin: 170, arm: 350, forearm: 350, props: [.floor(y: 92), .bench(x1: 16, x2: 72, y: 72)]),
+             FigurePose(hip: CGPoint(x: 40, y: 70), torso: 30, thigh: 60, shin: 170, arm: 20, forearm: 20, props: [.floor(y: 92), .bench(x1: 16, x2: 72, y: 72)]))
+        case .legRaise:
+            (FigurePose(hip: CGPoint(x: 46, y: 50), torso: 0, thigh: 180, shin: 180, arm: 0, forearm: 0, props: [.barOverhead(y: 3)]),
+             FigurePose(hip: CGPoint(x: 46, y: 50), torso: 0, thigh: 90, shin: 90, arm: 0, forearm: 0, props: [.barOverhead(y: 3)]))
+        case .abWheel:
+            (FigurePose(hip: CGPoint(x: 40, y: 68), torso: 30, thigh: 180, shin: 270, arm: 40, forearm: 40, props: [.floor(y: 92), .wheel]),
+             FigurePose(hip: CGPoint(x: 40, y: 66), torso: 80, thigh: 140, shin: 270, arm: 85, forearm: 85, props: [.floor(y: 92), .wheel]))
+        case .pallofPress:
+            (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 120, forearm: 0, props: [.floor(y: 92), .cable(x: 95, y: 32), .plateSmall]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 90, forearm: 90, props: [.floor(y: 92), .cable(x: 95, y: 32), .plateSmall]))
+        }    }
+}
+
+/// Something drawn with the figure: what it lies or sits on, and what it holds.
+nonisolated enum FigureProp: Hashable, Sendable {
+    case floor(y: Double)
+    case bench(x1: Double, x2: Double, y: Double)
+    case support(x1: Double, y1: Double, x2: Double, y2: Double)
+    case box(x: Double, y: Double, w: Double, h: Double)
+    case cable(x: Double, y: Double)
+    case barOverhead(y: Double)
+    case plate        // a bar seen end-on, at the hand
+    case plateSmall   // a cable handle, at the hand
+    case dumbbell
+    case post         // a dip bar: from the hand to the floor
+    case wheel
+    case shrugUp      // draws the shoulder a little higher than the torso puts it
+}
+
+/// A side-view stick figure, built from the hip outward. Angles are in degrees with 0 pointing
+/// up, 90 forward (to the right), 180 down and 270 back, each measured at its own joint.
+nonisolated struct FigurePose: Hashable, Sendable {
+    static let torsoLength = 22.0
+    static let thighLength = 18.0
+    static let shinLength = 18.0
+    static let upperArmLength = 13.0
+    static let forearmLength = 12.0
+    static let headOffset = 7.0
+    static let headRadius = 5.0
+
+    var hip: CGPoint
+    var torso: Double
+    var thigh: Double
+    var shin: Double
+    var arm: Double
+    var forearm: Double
+    var props: [FigureProp] = []
+
+    nonisolated struct Joints: Hashable, Sendable {
+        var shoulder: CGPoint
+        var head: CGPoint
+        var knee: CGPoint
+        var ankle: CGPoint
+        var elbow: CGPoint
+        var hand: CGPoint
+
+        var all: [CGPoint] { [shoulder, head, knee, ankle, elbow, hand] }
+    }
+
+    private static func step(_ from: CGPoint, _ degrees: Double, _ length: Double) -> CGPoint {
+        let r = degrees * .pi / 180
+        return CGPoint(x: from.x + length * sin(r), y: from.y - length * cos(r))
+    }
+
+    var joints: Joints {
+        var shoulder = Self.step(hip, torso, Self.torsoLength)
+        if props.contains(.shrugUp) { shoulder.y -= 4 }
+        let head = Self.step(shoulder, torso, Self.headOffset)
+        let knee = Self.step(hip, thigh, Self.thighLength)
+        let ankle = Self.step(knee, shin, Self.shinLength)
+        let elbow = Self.step(shoulder, arm, Self.upperArmLength)
+        let hand = Self.step(elbow, forearm, Self.forearmLength)
+        return Joints(shoulder: shoulder, head: head, knee: knee, ankle: ankle, elbow: elbow, hand: hand)
+    }
+}

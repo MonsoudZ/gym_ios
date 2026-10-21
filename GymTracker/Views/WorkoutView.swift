@@ -15,6 +15,7 @@ struct WorkoutView: View {
     @State private var confirmDiscard = false
     @State private var showAddExercise = false
     @State private var swapping: Exercise?
+    @State private var showingGuide: Exercise?
 
     private var metric: Bool { settingsList.first?.usesMetric ?? true }
 
@@ -105,6 +106,7 @@ struct WorkoutView: View {
         .sheet(isPresented: $showAddExercise) {
             SessionExercisePicker(session: session, replacing: nil, metric: metric)
         }
+        .sheet(item: $showingGuide) { ExerciseGuideSheet(exercise: $0) }
         .sheet(item: $swapping) { old in
             SessionExercisePicker(session: session, replacing: old, metric: metric)
         }
@@ -114,6 +116,7 @@ struct WorkoutView: View {
     /// sets behind, so it gets no verdict and cannot count as a miss.
     private func exerciseMenu(_ exercise: Exercise, hasLoggedSets: Bool) -> some View {
         Menu {
+            Button("How to do it", systemImage: "info.circle") { showingGuide = exercise }
             Button("Swap exercise", systemImage: "arrow.left.arrow.right") { swapping = exercise }
             Button(hasLoggedSets ? "Skip remaining sets" : "Skip exercise", systemImage: "forward.end", role: .destructive) {
                 session.skip(exercise, in: context)

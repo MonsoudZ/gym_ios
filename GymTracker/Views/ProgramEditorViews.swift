@@ -192,7 +192,7 @@ struct DayEditorView: View {
         .navigationTitle(day.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { EditButton() }
-        .navigationDestination(for: Exercise.self) { ExerciseEditorView(exercise: $0) }
+        .navigationDestination(for: Exercise.self) { ExerciseDetailView(exercise: $0) }
     }
 }
 
@@ -243,6 +243,7 @@ struct ExercisePickerView: View {
     @Query private var settingsList: [UserSettings]
     @State private var query = ""
     @State private var newExercise: Exercise?
+    @State private var showingGuide: Exercise?
 
     private var metric: Bool { settingsList.first?.usesMetric ?? false }
 
@@ -270,17 +271,22 @@ struct ExercisePickerView: View {
                 Section(group.title) {
                     ForEach(group.exercises, id: \.persistentModelID) { exercise in
                         let added = day.exerciseIDs.contains(exercise.id)
-                        Button { toggle(exercise) } label: {
-                            HStack {
-                                ExerciseSummaryRow(exercise: exercise, metric: metric)
-                                Spacer()
-                                Image(systemName: added ? "checkmark.circle.fill" : "plus.circle")
-                                    .foregroundStyle(added ? Color.green : Color.accentColor)
-                                    .contentTransition(.symbolEffect(.replace))
+                        HStack {
+                            Button { toggle(exercise) } label: {
+                                HStack {
+                                    ExerciseSummaryRow(exercise: exercise, metric: metric)
+                                    Spacer()
+                                    Image(systemName: added ? "checkmark.circle.fill" : "plus.circle")
+                                        .foregroundStyle(added ? Color.green : Color.accentColor)
+                                        .contentTransition(.symbolEffect(.replace))
+                                }
                             }
+                            .foregroundStyle(.primary)
+                            .accessibilityLabel(added ? "\(exercise.name), added. Double tap to remove." : "Add \(exercise.name)")
+                            Button { showingGuide = exercise } label: { Image(systemName: "info.circle") }
+                                .accessibilityLabel("How to do \(exercise.name)")
                         }
-                        .foregroundStyle(.primary)
-                        .accessibilityLabel(added ? "\(exercise.name), added. Double tap to remove." : "Add \(exercise.name)")
+                        .buttonStyle(.borderless)
                     }
                 }
             }
@@ -288,6 +294,7 @@ struct ExercisePickerView: View {
         .searchable(text: $query, prompt: "Search by name or muscle")
         .navigationTitle(day.exerciseIDs.isEmpty ? "Add to \(day.name)" : "\(day.name) · \(day.exerciseIDs.count) added")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $showingGuide) { ExerciseGuideSheet(exercise: $0) }
         .sheet(item: $newExercise) { exercise in
             NavigationStack {
                 ExerciseEditorView(exercise: exercise, isNew: true) {

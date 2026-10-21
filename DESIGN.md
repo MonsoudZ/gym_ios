@@ -140,6 +140,13 @@ Shipped defaults, all hitting each muscle ≥ 2×/week:
 Each template is just a list of exercises with rep ranges, set counts and increments.
 The engine is the same for all of them, so you can edit freely.
 
+**Exercise guide.** Every library exercise has a detail screen: a two-line summary, the
+equipment, four cues, a two-frame stick-figure diagram of the movement (`MovementPattern`;
+43 patterns shared across the 95 exercises) and a front-and-back muscle map shaded by the
+exercise's muscle weightings. Custom exercises get the muscle map and targets only. It opens
+from a program day, the picker's info button, the workout's exercise menu and a lift's
+progress screen. The cues are coaching convention, not study results.
+
 **Exercise library.** About 95 exercises ship with the app, grouped by main muscle in the
 picker, each with muscle weightings, a rep range by its role (3–6 heavy barbell, 6–12
 compound, 12–20 isolation) and a plate-step increment. Entries added to the library in a
