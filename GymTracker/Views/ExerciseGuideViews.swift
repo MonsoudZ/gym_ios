@@ -44,7 +44,7 @@ struct ExerciseDetailView: View {
 
             Section {
                 MuscleMap(muscles: exercise.muscles)
-                    .frame(height: 230)
+                    .frame(height: 320)
                     .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
                     .accessibilityLabel(exercise.muscles.involvementSummary)
                 if exercise.muscles.isEmpty {

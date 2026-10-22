@@ -14,12 +14,12 @@ extension MuscleInvolvement {
         }
     }
 
-    /// Translucent, so the body reads through the highlight.
+    /// Translucent, so the illustration reads through the highlight.
     var fillOpacity: Double {
         switch self {
-        case .primary: 0.8
-        case .secondary: 0.85
-        case .stabiliser: 0.5
+        case .primary: 0.6
+        case .secondary: 0.62
+        case .stabiliser: 0.48
         }
     }
 
@@ -69,12 +69,12 @@ struct MuscleSwatch: View {
 
     var body: some View {
         Circle()
-            .fill(tier.map { $0.color.opacity($0.fillOpacity) } ?? BodyFigure.silhouetteFill)
+            .fill(tier.map { $0.color.opacity($0.fillOpacity) } ?? Color.secondary.opacity(0.15))
             .overlay {
                 if let dash = tier?.dash {
                     Circle().strokeBorder(Color.primary.opacity(0.55), style: StrokeStyle(lineWidth: 1, dash: dash.map { $0 * 1.5 }))
                 } else if tier == nil {
-                    Circle().strokeBorder(BodyFigure.silhouetteStroke, lineWidth: 0.8)
+                    Circle().strokeBorder(Color.secondary.opacity(0.5), lineWidth: 0.8)
                 }
             }
             .frame(width: 10, height: 10)
@@ -82,63 +82,37 @@ struct MuscleSwatch: View {
     }
 }
 
-// MARK: - Figure geometry
+// MARK: - Figure
 
-/// A standing figure in a 0...100 × 0...170 box (the body spans y 2...161, the caption sits
-/// under the feet), traced as one smooth outline, and the muscle regions placed on it. The
-/// left half is drawn and mirrored, so the figure is symmetric. Proportions follow a 7½-head
-/// body: shoulders wider than the hips, a tapered torso, arms held a little away from the sides.
+/// The two anatomical plates the map is drawn on (Julien Bouglé, 1899, public domain; see
+/// Resources/ATTRIBUTIONS.md) and the muscle regions traced onto them. Regions are in each
+/// plate's own pixel coordinates, so they scale with the image. The plates are not mirror
+/// images (each shows a deeper dissection on one side), so every region is traced on both
+/// sides by hand.
 nonisolated enum BodyFigure {
-    enum Side: Hashable, Sendable { case front, back }
+    enum Side: Hashable, Sendable, CaseIterable {
+        case front, back
 
-    static let silhouetteFill = Color.secondary.opacity(0.17)
-    static let silhouetteStroke = Color.secondary.opacity(0.55)
+        var assetName: String {
+            switch self {
+            case .front: "MuscleFront"
+            case .back: "MuscleBack"
+            }
+        }
 
-    /// The left half of the outline, top of the head to the crotch, in order. Mirrored and
-    /// reversed for the right half, then smoothed into a closed curve.
-    private static let leftOutline: [CGPoint] = [
-        // Head, jaw, neck.
-        (50, 2.5), (45.8, 3.6), (43.0, 7.5), (42.6, 12.5), (43.8, 17.5), (46.4, 21.0), (47.0, 24.5), (46.4, 27.0),
-        // Trapezius slope and shoulder cap.
-        (41.0, 29.0), (34.0, 31.0), (28.8, 32.8), (25.6, 35.8), (24.2, 40.0),
-        // Upper arm, outside.
-        (23.2, 47.0), (22.2, 54.0), (21.3, 61.0),
-        // Forearm, outside, to the wrist.
-        (20.0, 69.0), (18.8, 77.0), (17.9, 84.0), (17.4, 89.0),
-        // Hand.
-        (16.7, 93.0), (17.3, 97.5), (19.8, 98.6), (22.3, 95.6), (23.5, 90.0),
-        // Forearm, inside.
-        (25.0, 83.0), (26.6, 75.0), (27.7, 67.0), (28.5, 61.0),
-        // Upper arm, inside, up to the armpit.
-        (29.5, 53.0), (30.4, 46.0), (31.8, 40.6),
-        // Torso side: chest, waist, hip.
-        (33.6, 46.0), (34.8, 54.0), (36.2, 62.0), (35.6, 70.0), (34.4, 78.0),
-        // Outer thigh, knee, calf, ankle.
-        (35.0, 86.0), (36.0, 94.0), (36.9, 102.0), (37.3, 110.0), (37.7, 118.0), (37.6, 125.0), (36.7, 133.0), (37.3, 141.0), (39.0, 148.0), (40.4, 153.0),
-        // Foot.
-        (38.4, 156.5), (39.4, 160.5), (46.0, 161.0), (47.4, 156.0), (47.0, 151.0),
-        // Inner calf, knee, thigh, up to the crotch.
-        (46.4, 144.0), (45.6, 136.0), (45.4, 128.0), (46.0, 121.0), (46.3, 112.0), (46.0, 103.0), (46.5, 95.0), (48.2, 89.0), (50, 86.5),
-    ].map { CGPoint(x: $0.0, y: $0.1) }
+        /// The plate's pixel size, which is the coordinate space of its regions.
+        var imageSize: CGSize {
+            switch self {
+            case .front: CGSize(width: 506, height: 1500)
+            case .back: CGSize(width: 499, height: 1500)
+            }
+        }
+    }
 
-    /// The whole outline, closed and smoothed, in box coordinates.
-    static let silhouette: Path = {
-        let left = leftOutline
-        let right = left.dropFirst().dropLast().reversed().map { CGPoint(x: 100 - $0.x, y: $0.y) }
-        return smoothClosed(left + right)
-    }()
-
-    /// One muscle's shape on one side of the body, in box coordinates. Regions on the left
-    /// are mirrored to the right unless they sit on the midline.
+    /// One muscle's shape on one side of the body, in the plate's pixel coordinates.
     struct Region: Sendable {
         var muscle: Muscle
         var path: Path
-        var mirrored: Bool
-
-        /// Both copies, left and right.
-        var paths: [Path] {
-            mirrored ? [path, path.applying(CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: 100, ty: 0))] : [path]
-        }
     }
 
     static func regions(_ side: Side) -> [Region] {
@@ -148,42 +122,55 @@ nonisolated enum BodyFigure {
         }
     }
 
-    // Upper arm runs from the shoulder (27.5, 38) to the elbow (25, 61); forearm from there to
-    // the wrist (20.5, 89). Thigh from the hip (41, 84) to the knee (41.7, 120); calf to the
-    // ankle (43.5, 152).
-    private static let armTilt = 6.0
-    private static let forearmTilt = 10.0
-
+    // Front plate, 506 × 1500. The figure's right side is on the image's left.
     static let front: [Region] = [
-        // Upper traps, the sliver visible beside the neck from the front.
-        Region(muscle: .upperBack, path: smoothClosed([(45.8, 26.6), (46.0, 29.2), (39.0, 31.6), (38.4, 30.8), (42.2, 29.0)].pts), mirrored: true),
-        Region(muscle: .sideDelt, path: ellipse(cx: 27.6, cy: 38.6, rx: 2.1, ry: 4.8, rotation: 12), mirrored: true),
-        Region(muscle: .frontDelt, path: ellipse(cx: 31.6, cy: 36.6, rx: 2.8, ry: 4.6, rotation: 4), mirrored: true),
-        // Pec: from the collarbone down to the lower chest line, squared off at the sternum.
-        Region(muscle: .chest, path: smoothClosed([(35.0, 36.8), (48.8, 34.6), (49.0, 46.6), (44.4, 50.0), (37.6, 48.6), (33.8, 43.0)].pts), mirrored: true),
-        Region(muscle: .biceps, path: ellipse(cx: 26.9, cy: 49.5, rx: 2.5, ry: 7.4, rotation: armTilt), mirrored: true),
-        Region(muscle: .forearms, path: ellipse(cx: 23.2, cy: 75.0, rx: 2.7, ry: 10.5, rotation: forearmTilt), mirrored: true),
-        // Rectus abdominis: a tapered block from under the chest to the belt line.
-        Region(muscle: .abs, path: smoothClosed([(44.2, 51.2), (55.8, 51.2), (56.0, 60.0), (55.0, 71.0), (52.0, 75.5), (48.0, 75.5), (45.0, 71.0), (44.0, 60.0)].pts), mirrored: false),
-        Region(muscle: .quads, path: ellipse(cx: 41.0, cy: 101.0, rx: 4.6, ry: 15.0, rotation: -2), mirrored: true),
+        // Upper trapezius, the sliver between the neck and each shoulder.
+        Region(muscle: .upperBack, path: smoothClosed([(164, 262), (226, 236), (230, 250), (170, 276)].pts)),
+        Region(muscle: .upperBack, path: smoothClosed([(276, 236), (338, 262), (332, 276), (272, 250)].pts)),
+        Region(muscle: .sideDelt, path: ellipse(cx: 76, cy: 322, rx: 12, ry: 40, rotation: -12)),
+        Region(muscle: .sideDelt, path: ellipse(cx: 432, cy: 322, rx: 12, ry: 40, rotation: 12)),
+        Region(muscle: .frontDelt, path: ellipse(cx: 92, cy: 302, rx: 21, ry: 31, rotation: -15)),
+        Region(muscle: .frontDelt, path: ellipse(cx: 418, cy: 302, rx: 21, ry: 31, rotation: 15)),
+        // Pectoralis major: clavicle to the lower chest line, squared off at the sternum.
+        Region(muscle: .chest, path: smoothClosed([(128, 274), (246, 264), (248, 396), (206, 406), (156, 382), (122, 326)].pts)),
+        Region(muscle: .chest, path: smoothClosed([(262, 264), (386, 272), (392, 330), (384, 370), (330, 396), (262, 400)].pts)),
+        Region(muscle: .biceps, path: ellipse(cx: 90, cy: 405, rx: 20, ry: 60, rotation: -8)),
+        Region(muscle: .biceps, path: ellipse(cx: 418, cy: 405, rx: 20, ry: 60, rotation: 8)),
+        Region(muscle: .forearms, path: ellipse(cx: 72, cy: 615, rx: 26, ry: 95, rotation: -6)),
+        Region(muscle: .forearms, path: ellipse(cx: 436, cy: 615, rx: 26, ry: 95, rotation: 6)),
+        // Rectus abdominis.
+        Region(muscle: .abs, path: smoothClosed([(212, 420), (300, 420), (304, 540), (300, 650), (282, 700), (232, 700), (212, 650), (208, 540)].pts)),
+        Region(muscle: .quads, path: smoothClosed([(112, 832), (166, 816), (222, 852), (226, 960), (206, 1040), (144, 1045), (112, 960), (104, 892)].pts)),
+        Region(muscle: .quads, path: smoothClosed([(282, 852), (340, 816), (396, 832), (404, 892), (396, 960), (364, 1045), (302, 1040), (280, 960)].pts)),
         // The inner head of the calf shows from the front.
-        Region(muscle: .calves, path: ellipse(cx: 43.6, cy: 134.0, rx: 1.9, ry: 8.0, rotation: -3), mirrored: true),
+        Region(muscle: .calves, path: ellipse(cx: 200, cy: 1200, rx: 14, ry: 80, rotation: 0)),
+        Region(muscle: .calves, path: ellipse(cx: 305, cy: 1200, rx: 14, ry: 80, rotation: 0)),
     ]
 
+    // Back plate, 499 × 1500.
     static let back: [Region] = [
-        // Traps and rhomboids: a kite from the neck to the shoulders and down the spine.
-        Region(muscle: .upperBack, path: smoothClosed([(50, 25.6), (36.0, 31.0), (42.4, 42.0), (50, 55.0), (57.6, 42.0), (64.0, 31.0)].pts), mirrored: false),
-        Region(muscle: .sideDelt, path: ellipse(cx: 27.6, cy: 38.6, rx: 2.1, ry: 4.8, rotation: 12), mirrored: true),
-        Region(muscle: .rearDelt, path: ellipse(cx: 31.4, cy: 36.8, rx: 2.8, ry: 4.6, rotation: 4), mirrored: true),
-        Region(muscle: .triceps, path: ellipse(cx: 26.6, cy: 50.0, rx: 2.5, ry: 8.0, rotation: armTilt), mirrored: true),
-        Region(muscle: .forearms, path: ellipse(cx: 23.2, cy: 75.0, rx: 2.7, ry: 10.5, rotation: forearmTilt), mirrored: true),
-        // Lats: from under the armpit, sweeping in toward the waist.
-        Region(muscle: .lats, path: smoothClosed([(33.6, 43.6), (40.6, 47.0), (44.0, 59.0), (43.0, 70.0), (38.6, 67.0), (34.6, 57.0)].pts), mirrored: true),
-        // Erectors: two columns either side of the spine.
-        Region(muscle: .lowerBack, path: Path(roundedRect: CGRect(x: 45.4, y: 59.0, width: 3.6, height: 19.0), cornerRadius: 1.6), mirrored: true),
-        Region(muscle: .glutes, path: ellipse(cx: 42.4, cy: 85.0, rx: 5.6, ry: 6.4, rotation: 14), mirrored: true),
-        Region(muscle: .hamstrings, path: ellipse(cx: 41.6, cy: 105.0, rx: 4.3, ry: 13.0, rotation: -1), mirrored: true),
-        Region(muscle: .calves, path: ellipse(cx: 42.4, cy: 133.5, rx: 3.6, ry: 10.0, rotation: -3), mirrored: true),
+        // Trapezius and rhomboids: neck to the shoulder points, down to mid back.
+        Region(muscle: .upperBack, path: smoothClosed([(250, 162), (190, 216), (112, 290), (142, 330), (202, 400), (250, 540), (298, 400), (358, 330), (388, 290), (310, 216)].pts)),
+        Region(muscle: .sideDelt, path: ellipse(cx: 74, cy: 324, rx: 12, ry: 40, rotation: -12)),
+        Region(muscle: .sideDelt, path: ellipse(cx: 426, cy: 324, rx: 12, ry: 40, rotation: 12)),
+        Region(muscle: .rearDelt, path: ellipse(cx: 95, cy: 305, rx: 24, ry: 40, rotation: -15)),
+        Region(muscle: .rearDelt, path: ellipse(cx: 405, cy: 305, rx: 24, ry: 40, rotation: 15)),
+        Region(muscle: .triceps, path: ellipse(cx: 85, cy: 410, rx: 22, ry: 65, rotation: -6)),
+        Region(muscle: .triceps, path: ellipse(cx: 415, cy: 410, rx: 22, ry: 65, rotation: 6)),
+        Region(muscle: .forearms, path: ellipse(cx: 62, cy: 615, rx: 26, ry: 95, rotation: -8)),
+        Region(muscle: .forearms, path: ellipse(cx: 440, cy: 615, rx: 26, ry: 95, rotation: 8)),
+        // Latissimus: from under the armpit, sweeping in to the waist.
+        Region(muscle: .lats, path: smoothClosed([(118, 340), (190, 380), (225, 430), (232, 560), (210, 640), (150, 600), (118, 500), (105, 400)].pts)),
+        Region(muscle: .lats, path: smoothClosed([(381, 340), (394, 400), (381, 500), (349, 600), (289, 640), (267, 560), (274, 430), (309, 380)].pts)),
+        // Erector spinae, either side of the spine.
+        Region(muscle: .lowerBack, path: Path(roundedRect: CGRect(x: 218, y: 470, width: 28, height: 220), cornerRadius: 12)),
+        Region(muscle: .lowerBack, path: Path(roundedRect: CGRect(x: 254, y: 470, width: 28, height: 220), cornerRadius: 12)),
+        Region(muscle: .glutes, path: smoothClosed([(105, 690), (185, 680), (238, 720), (240, 820), (200, 860), (140, 860), (100, 800)].pts)),
+        Region(muscle: .glutes, path: smoothClosed([(395, 690), (315, 680), (262, 720), (260, 820), (300, 860), (360, 860), (400, 800)].pts)),
+        Region(muscle: .hamstrings, path: smoothClosed([(120, 870), (200, 880), (232, 920), (228, 1040), (200, 1090), (150, 1090), (118, 1000)].pts)),
+        Region(muscle: .hamstrings, path: smoothClosed([(380, 870), (300, 880), (268, 920), (272, 1040), (300, 1090), (350, 1090), (382, 1000)].pts)),
+        Region(muscle: .calves, path: ellipse(cx: 172, cy: 1210, rx: 44, ry: 105, rotation: 0)),
+        Region(muscle: .calves, path: ellipse(cx: 325, cy: 1210, rx: 44, ry: 105, rotation: 0)),
     ]
 
     // MARK: Shape helpers
@@ -222,29 +209,38 @@ private struct BodyCanvas: View {
 
     var body: some View {
         Canvas { context, size in
-            let scale = min(size.width / 100, size.height / 170)
-            let offset = CGPoint(x: (size.width - 100 * scale) / 2, y: (size.height - 170 * scale) / 2)
-            let transform = CGAffineTransform(translationX: offset.x, y: offset.y).scaledBy(x: scale, y: scale)
+            let image = side.imageSize
+            let captionHeight = 14.0
+            let scale = min(size.width / image.width, (size.height - captionHeight) / image.height)
+            let fitted = CGRect(x: (size.width - image.width * scale) / 2, y: (size.height - captionHeight - image.height * scale) / 2,
+                                width: image.width * scale, height: image.height * scale)
+            let transform = CGAffineTransform(translationX: fitted.minX, y: fitted.minY).scaledBy(x: scale, y: scale)
 
-            let silhouette = BodyFigure.silhouette.applying(transform)
-            context.fill(silhouette, with: .color(BodyFigure.silhouetteFill))
-            context.stroke(silhouette, with: .color(BodyFigure.silhouetteStroke),
-                           style: StrokeStyle(lineWidth: 0.7 * scale, lineJoin: .round))
+            context.draw(Self.plate(side), in: fitted)
 
             let tiers = Dictionary(muscles.compactMap { mw in mw.involvement.map { (mw.muscle, $0) } }, uniquingKeysWith: min)
-            let outline = GraphicsContext.Shading.color(Color.primary.opacity(0.5))
+            let outline = GraphicsContext.Shading.color(Color.primary.opacity(0.65))
             for region in BodyFigure.regions(side) {
                 guard let tier = tiers[region.muscle] else { continue }
-                for path in region.paths {
-                    let scaled = path.applying(transform)
-                    context.fill(scaled, with: .color(tier.color.opacity(tier.fillOpacity)))
-                    if let dash = tier.dash {
-                        context.stroke(scaled, with: outline, style: StrokeStyle(lineWidth: 0.7 * scale, dash: dash.map { $0 * scale }))
-                    }
+                let scaled = region.path.applying(transform)
+                context.fill(scaled, with: .color(tier.color.opacity(tier.fillOpacity)))
+                if let dash = tier.dash {
+                    context.stroke(scaled, with: outline, style: StrokeStyle(lineWidth: 1, dash: dash.map { $0 * 1.6 }))
                 }
             }
             let label = Text(side == .front ? "Front" : "Back").font(.caption2).foregroundStyle(.secondary)
-            context.draw(label, at: CGPoint(x: size.width / 2, y: offset.y + 170 * scale), anchor: .bottom)
+            context.draw(label, at: CGPoint(x: size.width / 2, y: size.height), anchor: .bottom)
         }
+    }
+
+    /// The plate from the asset catalogue. The macOS branch exists only for the offline
+    /// renderer used while tracing regions; it reads the PNGs from MUSCLE_IMAGE_DIR.
+    static func plate(_ side: BodyFigure.Side) -> Image {
+        #if canImport(UIKit)
+        return Image(side.assetName)
+        #else
+        let dir = ProcessInfo.processInfo.environment["MUSCLE_IMAGE_DIR"] ?? "."
+        return Image(nsImage: NSImage(contentsOfFile: "\(dir)/\(side.assetName).png") ?? NSImage())
+        #endif
     }
 }

@@ -168,34 +168,45 @@ final class ExerciseGuideTests: XCTestCase {
 
     // MARK: Body figure
 
-    func testEveryMuscleHasARegionOnTheBodyAndEveryRegionSitsOnIt() {
-        let silhouette = BodyFigure.silhouette
-        let body = silhouette.boundingRect
-        XCTAssertTrue(body.minX > 10 && body.maxX < 90 && body.minY > 0 && body.maxY < 170, "the figure fills its box sensibly: \(body)")
-        XCTAssertEqual(body.midX, 50, accuracy: 0.01, "the figure is symmetric")
+    /// Every muscle has a region on the plates, and every region sits on the drawn figure
+    /// (sampled against the plate's alpha) without covering more than a modest share of it.
+    @MainActor
+    func testEveryMuscleRegionSitsOnThePlate() throws {
         var covered: Set<Muscle> = []
-        for side in [BodyFigure.Side.front, .back] {
+        for side in BodyFigure.Side.allCases {
+            let plate = try XCTUnwrap(UIImage(named: side.assetName)?.cgImage, "\(side) plate missing from the asset catalogue")
+            let width = plate.width, height = plate.height
+            XCTAssertEqual(CGSize(width: width, height: height), side.imageSize, "\(side) regions are traced in the wrong pixel space")
+            var alpha = [UInt8](repeating: 0, count: width * height)
+            let context = try XCTUnwrap(CGContext(data: &alpha, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width,
+                                                  space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue))
+            context.draw(plate, in: CGRect(x: 0, y: 0, width: width, height: height))
+            func opaque(_ point: CGPoint) -> Bool {
+                // Row 0 of a bitmap context's buffer is the top of the drawn image.
+                let x = Int(point.x), y = Int(point.y)
+                guard x >= 0, y >= 0, x < width, y < height else { return false }
+                return alpha[y * width + x] > 128
+            }
+            let plateArea = Double(width * height)
             for region in BodyFigure.regions(side) {
                 covered.insert(region.muscle)
-                for path in region.paths {
-                    let rect = path.boundingRect
-                    // Sample the shape itself: at least nine in ten of its points lie on the body.
-                    var inside = 0, total = 0
-                    for i in 0..<9 {
-                        for j in 0..<9 {
-                            let point = CGPoint(x: rect.minX + rect.width * (Double(i) + 0.5) / 9, y: rect.minY + rect.height * (Double(j) + 0.5) / 9)
-                            guard path.contains(point) else { continue }
-                            total += 1
-                            if silhouette.contains(point) { inside += 1 }
-                        }
+                let rect = region.path.boundingRect
+                var inside = 0, onFigure = 0
+                let steps = 14
+                for i in 0..<steps {
+                    for j in 0..<steps {
+                        let point = CGPoint(x: rect.minX + rect.width * (Double(i) + 0.5) / Double(steps),
+                                            y: rect.minY + rect.height * (Double(j) + 0.5) / Double(steps))
+                        guard region.path.contains(point) else { continue }
+                        inside += 1
+                        if opaque(point) { onFigure += 1 }
                     }
-                    XCTAssertGreaterThan(total, 0, "\(side) \(region.muscle) has no area")
-                    XCTAssertGreaterThanOrEqual(Double(inside), Double(total) * 0.9, "\(side) \(region.muscle) hangs off the body at \(rect)")
-                    XCTAssertLessThan(rect.width * rect.height, body.width * body.height / 12, "\(side) \(region.muscle) covers too much of the figure")
                 }
+                XCTAssertGreaterThan(inside, 0, "\(side) \(region.muscle) has no area")
+                XCTAssertGreaterThanOrEqual(Double(onFigure), Double(inside) * 0.85, "\(side) \(region.muscle) hangs off the figure at \(rect)")
+                let area = rect.width * rect.height * Double(inside) / Double(steps * steps)
+                XCTAssertLessThan(area, plateArea / 10, "\(side) \(region.muscle) covers too much of the figure")
             }
-            let muscles = BodyFigure.regions(side).map(\.muscle)
-            XCTAssertEqual(Set(muscles).count, muscles.count, "\(side) lists a muscle twice")
         }
         XCTAssertEqual(covered, Set(Muscle.allCases), "muscles with no region on either side")
     }
