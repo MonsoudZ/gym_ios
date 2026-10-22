@@ -15,7 +15,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Select the newest Xcode 26
         run: |
@@ -46,6 +46,7 @@ jobs:
       - name: Build and run the tests
         run: |
           set -o pipefail
+          mkdir -p build
           xcodebuild test \
             -project GymTracker.xcodeproj \
             -scheme GymTracker \
@@ -54,12 +55,12 @@ jobs:
             -resultBundlePath build/Tests.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             | tee build/xcodebuild.log \
-            | grep -E "^(Test Suite|Test Case|.*error:|.*warning: .*\.swift|\*\* TEST)" || true
+            | grep -E "^(Test Suite|xcodebuild: error|\*\* TEST)|\.swift:[0-9]+:[0-9]+: (error|warning):" || true
           grep -q "\*\* TEST SUCCEEDED \*\*" build/xcodebuild.log
 
       - name: Upload the result bundle
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-results
           path: |
