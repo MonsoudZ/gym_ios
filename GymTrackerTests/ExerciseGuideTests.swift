@@ -63,4 +63,105 @@ final class ExerciseGuideTests: XCTestCase {
             XCTAssertFalse(pattern.accessibilityDescription.isEmpty, "\(pattern)")
         }
     }
+
+    // MARK: Muscle grading
+
+    func testEveryLibraryExerciseHasAPrimaryMoverAndEachMuscleInOneTier() {
+        for spec in ExerciseLibrary.all {
+            let tiers = spec.muscles.byInvolvement
+            XCTAssertFalse(tiers[.primary, default: []].isEmpty, "\(spec.name) has no primary mover")
+            let listed = spec.muscles.map(\.muscle)
+            XCTAssertEqual(Set(listed).count, listed.count, "\(spec.name) grades a muscle twice")
+            for mw in spec.muscles {
+                XCTAssertNotNil(mw.involvement, "\(spec.name): \(mw.muscle) weight \(mw.weight) is in no tier")
+                XCTAssertEqual(mw.weight, mw.involvement?.weight, "\(spec.name): \(mw.muscle) weight is not a tier's weight")
+            }
+        }
+        let graded = ExerciseLibrary.all.filter { !$0.muscles.byInvolvement[.stabiliser, default: []].isEmpty }.count
+        XCTAssertGreaterThanOrEqual(graded, 80, "most exercises name a stabiliser; \(graded) do")
+    }
+
+    func testTiersFollowTheStoredWeight() {
+        XCTAssertEqual(MuscleInvolvement(weight: 1), .primary)
+        XCTAssertEqual(MuscleInvolvement(weight: 0.5), .secondary)
+        XCTAssertEqual(MuscleInvolvement(weight: 0.25), .stabiliser)
+        XCTAssertEqual(MuscleInvolvement(weight: 0.75), .secondary, "anything between the tiers rounds down")
+        XCTAssertNil(MuscleInvolvement(weight: 0))
+        XCTAssertTrue(MuscleInvolvement.primary < .secondary && .secondary < .stabiliser)
+        XCTAssertEqual(MuscleWeight(muscle: .abs, involvement: .stabiliser).weight, 0.25)
+    }
+
+    func testInvolvementSummaryListsTiersInOrder() {
+        let squat = ExerciseLibrary.spec("Back Squat")!.muscles
+        XCTAssertEqual(squat.involvementSummary, "Primary movers: Quads, Glutes. Secondary: Lower back. Stabilisers: Abs, Hamstrings, Calves.")
+        XCTAssertEqual([MuscleWeight]().involvementSummary, "No muscles set")
+        // A muscle listed twice keeps its highest tier.
+        let twice = [MuscleWeight(muscle: .chest, weight: 0.25), MuscleWeight(muscle: .chest, weight: 1)]
+        XCTAssertEqual(twice.byInvolvement, [.primary: [.chest]])
+    }
+
+    // MARK: Motion
+
+    func testTurnTakesTheShortWayRound() {
+        XCTAssertEqual(FigurePose.turn(from: 275, to: 30), 115, accuracy: 0.001)
+        XCTAssertEqual(FigurePose.turn(from: 180, to: 90), -90, accuracy: 0.001)
+        XCTAssertEqual(FigurePose.turn(from: 350, to: 10), 20, accuracy: 0.001)
+        XCTAssertEqual(FigurePose.turn(from: 10, to: 350), -20, accuracy: 0.001)
+    }
+
+    func testInterpolationMeetsBothFramesAndStaysInside() {
+        for pattern in MovementPattern.allCases {
+            let frames = pattern.frames
+            assertSamePose(frames.start.interpolated(to: frames.finish, 0), frames.start, "\(pattern) at 0")
+            assertSamePose(frames.start.interpolated(to: frames.finish, 1), frames.finish, "\(pattern) at 1")
+            for step in 1..<8 {
+                let pose = frames.start.interpolated(to: frames.finish, Double(step) / 8)
+                for point in pose.joints.all + [pose.hip] {
+                    XCTAssertTrue((-8...108).contains(point.x) && (-8...108).contains(point.y),
+                                  "\(pattern) leaves the square part way through, at \(point)")
+                }
+            }
+        }
+    }
+
+    private func assertSamePose(_ a: FigurePose, _ b: FigurePose, _ message: String, file: StaticString = #filePath, line: UInt = #line) {
+        for (p, q) in zip(a.joints.all + [a.hip], b.joints.all + [b.hip]) {
+            XCTAssertEqual(p.x, q.x, accuracy: 0.001, message, file: file, line: line)
+            XCTAssertEqual(p.y, q.y, accuracy: 0.001, message, file: file, line: line)
+        }
+    }
+
+    func testEveryPatternHasAPathAndSomethingThatMoves() {
+        for pattern in MovementPattern.allCases {
+            let motion = pattern.motion
+            XCTAssertGreaterThanOrEqual(motion.path.count, 2, "\(pattern)")
+            let travel = MovementMotion.distance(motion.path.first!, motion.path.last!)
+            XCTAssertGreaterThanOrEqual(travel, 3, "\(pattern): the \(motion.anchor) barely moves")
+            XCTAssertFalse(motion.turns.isEmpty && motion.shifts.isEmpty, "\(pattern) has no arrow to draw")
+            for point in motion.path + motion.turns.flatMap(\.points) {
+                XCTAssertTrue((-8...108).contains(point.x) && (-8...108).contains(point.y), "\(pattern) draws a mark outside the square at \(point)")
+            }
+            XCTAssertFalse(pattern.pathDescription.isEmpty)
+        }
+    }
+
+    func testMotionPicksTheLoadWhenHeldAndTheMovingLimbOtherwise() {
+        XCTAssertEqual(MovementPattern.benchPress.motion.anchor, .hand)
+        XCTAssertEqual(MovementPattern.squat.motion.anchor, .hand, "the bar, not the hips")
+        XCTAssertEqual(MovementPattern.verticalPull.motion.anchor, .hip, "the body rises to a fixed bar")
+        XCTAssertEqual(MovementPattern.legExtension.motion.anchor, .ankle)
+        // A curl turns only the elbow; a squat turns the torso and the thigh at the hip (the shin
+        // stays near vertical) and the hips shift up and forward.
+        XCTAssertEqual(MovementPattern.curl.motion.turns.map(\.joint), ["elbow"])
+        XCTAssertEqual(Set(MovementPattern.squat.motion.turns.map(\.joint)), ["torso", "hip"])
+        XCTAssertEqual(MovementPattern.squat.motion.shifts.map(\.point), ["hips"])
+        // The curl's hand follows an arc around the elbow, so the path bows out past the straight line.
+        let curl = MovementPattern.curl.motion.path
+        let mid = curl[curl.count / 2]
+        let chord = CGPoint(x: (curl.first!.x + curl.last!.x) / 2, y: (curl.first!.y + curl.last!.y) / 2)
+        XCTAssertGreaterThan(MovementMotion.distance(mid, chord), 2)
+        // The shrug has no joint turn: the shoulders shift straight up.
+        XCTAssertEqual(MovementPattern.shrug.motion.shifts.map(\.point), ["shoulders"])
+        XCTAssertLessThan(MovementPattern.shrug.motion.path.last!.y, MovementPattern.shrug.motion.path.first!.y)
+    }
 }

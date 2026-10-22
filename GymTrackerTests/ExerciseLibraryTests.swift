@@ -44,14 +44,60 @@ final class ExerciseLibraryTests: XCTestCase {
     }
 
     func testOriginalEntriesAreUnchanged() {
-        // The built-in splits and several engine tests depend on these exact values.
+        // The built-in splits and several engine tests depend on these values. Stabilisers
+        // (weight 0.25) were graded later and may be added; the primary and secondary tiers stay.
+        func mainTiers(_ name: String) -> [MuscleWeight] { ExerciseLibrary.spec(name)!.muscles.filter { $0.weight >= 0.5 } }
         let bench = ExerciseLibrary.spec("Barbell Bench Press")!
-        XCTAssertEqual(bench.muscles, [MuscleWeight(muscle: .chest, weight: 1), MuscleWeight(muscle: .triceps, weight: 0.5), MuscleWeight(muscle: .frontDelt, weight: 0.5)])
+        XCTAssertEqual(mainTiers(bench.name), [MuscleWeight(muscle: .chest, weight: 1), MuscleWeight(muscle: .triceps, weight: 0.5), MuscleWeight(muscle: .frontDelt, weight: 0.5)])
         XCTAssertEqual([bench.repRangeLow, bench.repRangeHigh, bench.setCount], [6, 8, 3])
         XCTAssertEqual(bench.increment, 2.5)
         let deadlift = ExerciseLibrary.spec("Deadlift")!
         XCTAssertEqual([deadlift.repRangeLow, deadlift.repRangeHigh, deadlift.setCount], [3, 5, 2])
-        XCTAssertEqual(ExerciseLibrary.spec("Triceps Pushdown")?.muscles, [MuscleWeight(muscle: .triceps, weight: 1)])
+        XCTAssertEqual(mainTiers("Deadlift"), [MuscleWeight(muscle: .hamstrings, weight: 1), MuscleWeight(muscle: .glutes, weight: 1), MuscleWeight(muscle: .lowerBack, weight: 1), MuscleWeight(muscle: .upperBack, weight: 0.5)])
+        XCTAssertEqual(mainTiers("Triceps Pushdown"), [MuscleWeight(muscle: .triceps, weight: 1)])
+        XCTAssertEqual(ExerciseLibrary.spec("Back Squat")!.muscles.max(by: { $0.weight < $1.weight })?.muscle, .quads, "stabilisers never change the main muscle")
+    }
+
+    @MainActor
+    func testOlderInstallGainsStabiliserTierButKeepsItsOwnGrading() throws {
+        let context = try makeContext()
+        let settings = UserSettings()
+        settings.hasCompletedOnboarding = true
+        context.insert(settings)
+        // Seeded before muscles were graded: primary and secondary only.
+        let squat = Exercise(spec: ExerciseLibrary.spec("Back Squat")!)
+        squat.muscles = [MuscleWeight(muscle: .quads, weight: 1), MuscleWeight(muscle: .glutes, weight: 1), MuscleWeight(muscle: .lowerBack, weight: 0.5)]
+        context.insert(squat)
+        // The lifter regraded this one: glutes dropped to secondary.
+        let press = Exercise(spec: ExerciseLibrary.spec("Leg Press")!)
+        press.muscles = [MuscleWeight(muscle: .quads, weight: 1), MuscleWeight(muscle: .hamstrings, weight: 0.5)]
+        context.insert(press)
+        // The lifter added their own stabiliser; the library's others still arrive.
+        let bench = Exercise(spec: ExerciseLibrary.spec("Barbell Bench Press")!)
+        bench.muscles = [MuscleWeight(muscle: .chest, weight: 1), MuscleWeight(muscle: .triceps, weight: 0.5), MuscleWeight(muscle: .frontDelt, weight: 0.5), MuscleWeight(muscle: .abs, weight: 0.25)]
+        context.insert(bench)
+        let custom = Exercise(name: "Sled Push", metric: true)
+        custom.muscles = [MuscleWeight(muscle: .quads, weight: 1)]
+        context.insert(custom)
+        try context.save()
+
+        Seeder.prepare(context: context)
+
+        XCTAssertEqual(squat.muscles, ExerciseLibrary.spec("Back Squat")!.muscles, "an unedited exercise gets the library's grading")
+        XCTAssertEqual(press.muscles, [MuscleWeight(muscle: .quads, weight: 1), MuscleWeight(muscle: .hamstrings, weight: 0.5)], "a regraded exercise is left alone")
+        XCTAssertEqual(bench.muscles.map(\.muscle), [.chest, .triceps, .frontDelt, .abs, .upperBack])
+        XCTAssertEqual(custom.muscles, [MuscleWeight(muscle: .quads, weight: 1)])
+        let all = try context.fetch(FetchDescriptor<Exercise>())
+        for exercise in all where exercise.isFromLibrary && ![squat.id, press.id, bench.id].contains(exercise.id) {
+            XCTAssertEqual(exercise.muscles, ExerciseLibrary.spec(exercise.name)!.muscles, "\(exercise.name) seeded now carries the full grading")
+        }
+
+        // Running again changes nothing.
+        let before = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0.muscles) })
+        Seeder.prepare(context: context)
+        for exercise in try context.fetch(FetchDescriptor<Exercise>()) {
+            XCTAssertEqual(exercise.muscles, before[exercise.id], exercise.name)
+        }
     }
 
     func testBuiltInSplitsOnlyNameLibraryExercises() {

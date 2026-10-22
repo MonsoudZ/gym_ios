@@ -393,6 +393,7 @@ struct ExerciseEditorView: View {
                 ForEach(Muscle.allCases) { muscle in
                     Picker(muscle.displayName, selection: muscleBinding(muscle)) {
                         Text("—").tag(0.0)
+                        Text("Stabiliser").tag(0.25)
                         Text("Secondary").tag(0.5)
                         Text("Primary").tag(1.0)
                     }
@@ -401,7 +402,7 @@ struct ExerciseEditorView: View {
             } header: {
                 Text("Muscles")
             } footer: {
-                Text("Primary counts as a full hard set toward weekly volume, secondary as half.")
+                Text("Primary counts as a full hard set toward weekly volume, secondary as half, a stabiliser as a quarter. The muscle map is coloured by these tiers.")
             }
         }
         .navigationTitle(isNew ? "New exercise" : exercise.name)

@@ -8,6 +8,7 @@ enum Seeder {
         seedIfNeeded(context: context)
         migrate(context: context)
         addMissingLibraryExercises(context: context)
+        gradeLibraryMuscles(context: context)
         ensurePrograms(context: context)
     }
 
@@ -38,6 +39,26 @@ enum Seeder {
             added = true
         }
         if added { context.saveOrLog() }
+    }
+
+    /// Gives library exercises seeded before muscles were graded their stabiliser tier. Only an
+    /// exercise whose primary and secondary muscles still match the library's is touched, so one
+    /// the lifter has regraded keeps their grading; a custom exercise is never touched. Safe to
+    /// run on every launch: once the tiers are present there is nothing to add.
+    static func gradeLibraryMuscles(context: ModelContext) {
+        let exercises = (try? context.fetch(FetchDescriptor<Exercise>())) ?? []
+        var changed = false
+        for exercise in exercises {
+            guard let spec = ExerciseLibrary.spec(exercise.name) else { continue }
+            let mainTiers = { (muscles: [MuscleWeight]) in Set(muscles.filter { $0.weight >= 0.5 }) }
+            guard mainTiers(exercise.muscles) == mainTiers(spec.muscles) else { continue }
+            let listed = Set(exercise.muscles.map(\.muscle))
+            let missing = spec.muscles.filter { $0.weight < 0.5 && !listed.contains($0.muscle) }
+            guard !missing.isEmpty else { continue }
+            exercise.muscles.append(contentsOf: missing)
+            changed = true
+        }
+        if changed { context.saveOrLog() }
     }
 
     /// Repairs for installs created before exercises had ids and program days referred to them by id.

@@ -203,3 +203,153 @@ nonisolated struct FigurePose: Hashable, Sendable {
         return Joints(shoulder: shoulder, head: head, knee: knee, ankle: ankle, elbow: elbow, hand: hand)
     }
 }
+
+nonisolated extension FigurePose {
+    /// The shortest way round from one limb angle to another, in degrees (-180...180).
+    static func turn(from a: Double, to b: Double) -> Double {
+        var d = (b - a).truncatingRemainder(dividingBy: 360)
+        if d > 180 { d -= 360 }
+        if d < -180 { d += 360 }
+        return d
+    }
+
+    /// The pose part way (`t` in 0...1) from this one to `other`: the hip slides in a straight line,
+    /// each joint turns the short way round. Props come from whichever end is nearer.
+    func interpolated(to other: FigurePose, _ t: Double) -> FigurePose {
+        func lerp(_ a: Double, _ b: Double) -> Double { a + (b - a) * t }
+        func angle(_ a: Double, _ b: Double) -> Double { a + Self.turn(from: a, to: b) * t }
+        return FigurePose(hip: CGPoint(x: lerp(hip.x, other.hip.x), y: lerp(hip.y, other.hip.y)),
+                          torso: angle(torso, other.torso), thigh: angle(thigh, other.thigh), shin: angle(shin, other.shin),
+                          arm: angle(arm, other.arm), forearm: angle(forearm, other.forearm),
+                          props: t < 0.5 ? props : other.props)
+    }
+
+    /// Whether the figure holds a load whose path is worth drawing.
+    var holdsLoad: Bool {
+        props.contains { prop in
+            switch prop {
+            case .plate, .plateSmall, .dumbbell, .wheel, .cable: true
+            default: false
+            }
+        }
+    }
+}
+
+/// What moves between the two frames, worked out from them: the path of the load (or of the
+/// limb that moves most when nothing is held), the joints whose angle changes and which way,
+/// and any straight shift of the hips or shoulders the arcs do not already show.
+nonisolated struct MovementMotion: Hashable, Sendable {
+    nonisolated enum Anchor: String, Hashable, Sendable { case hand, hip, shoulder, knee, ankle }
+
+    /// A joint turning from one limb angle to another, drawn as an arc around the joint.
+    nonisolated struct Turn: Hashable, Sendable {
+        var joint: String
+        var pivot: CGPoint
+        var from: Double
+        var to: Double
+        var radius: Double
+
+        var degrees: Double { FigurePose.turn(from: from, to: to) }
+
+        /// Points along the arc, start to finish, in the figure's 0...100 square.
+        var points: [CGPoint] {
+            let steps = max(4, Int(abs(degrees) / 10))
+            return (0...steps).map { i in
+                let a = (from + degrees * Double(i) / Double(steps)) * .pi / 180
+                return CGPoint(x: pivot.x + radius * sin(a), y: pivot.y - radius * cos(a))
+            }
+        }
+    }
+
+    /// A point moving in a straight line, drawn as a short arrow.
+    nonisolated struct Shift: Hashable, Sendable {
+        var point: String
+        var from: CGPoint
+        var to: CGPoint
+    }
+
+    var anchor: Anchor
+    /// The anchor's path from frame 1 to frame 2, in the 0...100 square.
+    var path: [CGPoint]
+    var turns: [Turn]
+    var shifts: [Shift]
+
+    static let turnThreshold = 20.0
+    static let shiftThreshold = 3.5
+
+    static func distance(_ a: CGPoint, _ b: CGPoint) -> Double { hypot(a.x - b.x, a.y - b.y) }
+
+    init(start: FigurePose, finish: FigurePose) {
+        let a = start.joints, b = finish.joints
+        // Hips first: when the whole body moves (a pull-up, a dip), that is the path to show.
+        let candidates: [(Anchor, CGPoint, CGPoint)] = [
+            (.hip, start.hip, finish.hip), (.hand, a.hand, b.hand), (.ankle, a.ankle, b.ankle),
+            (.knee, a.knee, b.knee), (.shoulder, a.shoulder, b.shoulder),
+        ]
+        let moving: Anchor
+        if start.holdsLoad || finish.holdsLoad {
+            moving = .hand
+        } else {
+            moving = candidates.max { Self.distance($0.1, $0.2) < Self.distance($1.1, $1.2) }!.0
+        }
+        anchor = moving
+        let steps = 16
+        path = (0...steps).map { i in
+            let pose = start.interpolated(to: finish, Double(i) / Double(steps))
+            let j = pose.joints
+            switch moving {
+            case .hand: return j.hand
+            case .hip: return pose.hip
+            case .ankle: return j.ankle
+            case .knee: return j.knee
+            case .shoulder: return j.shoulder
+            }
+        }
+        // The shrug moves the shoulder by a prop, not an angle; make the path end where it ends.
+        if moving == .hand { path[path.count - 1] = b.hand }
+        if moving == .shoulder { path[path.count - 1] = b.shoulder }
+
+        var turns: [Turn] = []
+        let joints: [(String, CGPoint, Double, Double, Double)] = [
+            ("torso", start.hip, start.torso, finish.torso, 12),
+            ("hip", start.hip, start.thigh, finish.thigh, 9),
+            ("knee", a.knee, start.shin, finish.shin, 9),
+            ("shoulder", a.shoulder, start.arm, finish.arm, 9),
+            ("elbow", a.elbow, start.forearm, finish.forearm, 8),
+        ]
+        for (joint, pivot, from, to, radius) in joints where abs(FigurePose.turn(from: from, to: to)) >= Self.turnThreshold {
+            turns.append(Turn(joint: joint, pivot: pivot, from: from, to: to, radius: radius))
+        }
+        self.turns = turns
+
+        var shifts: [Shift] = []
+        if moving != .hip, Self.distance(start.hip, finish.hip) >= Self.shiftThreshold {
+            shifts.append(Shift(point: "hips", from: start.hip, to: finish.hip))
+        }
+        let torsoTurns = abs(FigurePose.turn(from: start.torso, to: finish.torso)) >= Self.turnThreshold
+        if moving != .shoulder, !torsoTurns, Self.distance(start.hip, finish.hip) < Self.shiftThreshold,
+           Self.distance(a.shoulder, b.shoulder) >= Self.shiftThreshold {
+            shifts.append(Shift(point: "shoulders", from: a.shoulder, to: b.shoulder))
+        }
+        self.shifts = shifts
+    }
+}
+
+nonisolated extension MovementPattern {
+    /// The motion between the two frames, for the arrows and the load path.
+    var motion: MovementMotion {
+        let both = frames
+        return MovementMotion(start: both.start, finish: both.finish)
+    }
+
+    /// What the dashed line in the diagram follows.
+    var pathDescription: String {
+        switch motion.anchor {
+        case .hand: "the path of the bar, handle or dumbbell"
+        case .hip: "the path of the hips"
+        case .shoulder: "the path of the shoulders"
+        case .knee: "the path of the knee"
+        case .ankle: "the path of the foot"
+        }
+    }
+}

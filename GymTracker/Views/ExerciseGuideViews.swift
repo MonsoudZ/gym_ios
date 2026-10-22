@@ -18,14 +18,14 @@ struct ExerciseDetailView: View {
             if let guide {
                 Section {
                     MovementDiagram(pattern: guide.pattern)
-                        .frame(height: 170)
+                        .frame(height: 190)
                         .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
                         .accessibilityLabel("Diagram: \(guide.pattern.accessibilityDescription)")
                     Text(guide.summary)
                     LabeledContent("Equipment", value: guide.equipment)
                         .font(.subheadline)
                 } footer: {
-                    Text("1 to 2 is the lifting phase. The figure is schematic: it shows which joints move and in which direction.")
+                    Text("Start to finish is the lifting phase. Arrows show which joints move and which way; the dashed line is \(guide.pattern.pathDescription); the faint figure is the start position. The figure is schematic, not to scale.")
                 }
                 Section("How to do it") {
                     ForEach(Array(guide.cues.enumerated()), id: \.offset) { index, cue in
@@ -42,17 +42,31 @@ struct ExerciseDetailView: View {
                 }
             }
 
-            Section("Muscles") {
+            Section {
                 MuscleMap(muscles: exercise.muscles)
-                    .frame(height: 200)
+                    .frame(height: 230)
                     .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
-                    .accessibilityLabel(muscleSummary)
+                    .accessibilityLabel(exercise.muscles.involvementSummary)
                 if exercise.muscles.isEmpty {
                     Text("No muscles set. Edit the exercise to add them, so its sets count toward weekly volume.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 } else {
-                    Text(muscleSummary).font(.subheadline).foregroundStyle(.secondary)
+                    let tiers = exercise.muscles.byInvolvement
+                    ForEach(MuscleInvolvement.allCases) { tier in
+                        if let muscles = tiers[tier], !muscles.isEmpty {
+                            HStack(spacing: 8) {
+                                MuscleSwatch(tier: tier)
+                                LabeledContent(tier.pluralName, value: muscles.map(\.displayName).joined(separator: ", "))
+                            }
+                            .font(.subheadline)
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
                 }
+            } header: {
+                Text("Muscles")
+            } footer: {
+                Text("Each set counts as a full hard set for a primary mover, half for a secondary, a quarter for a stabiliser.")
             }
 
             Section {
@@ -76,14 +90,6 @@ struct ExerciseDetailView: View {
         }
     }
 
-    private var muscleSummary: String {
-        let primary = exercise.muscles.filter { $0.weight >= 1 }.map(\.muscle.displayName)
-        let secondary = exercise.muscles.filter { $0.weight < 1 }.map(\.muscle.displayName)
-        var parts: [String] = []
-        if !primary.isEmpty { parts.append("Primary: \(primary.joined(separator: ", "))") }
-        if !secondary.isEmpty { parts.append("Secondary: \(secondary.joined(separator: ", "))") }
-        return parts.isEmpty ? "No muscles set" : parts.joined(separator: ". ")
-    }
 }
 
 /// The detail view in a sheet of its own, for places that are not inside a navigation stack
@@ -102,21 +108,24 @@ struct ExerciseGuideSheet: View {
 
 // MARK: - Movement diagram
 
-/// Two stick-figure frames of a movement pattern, side by side, with an arrow between them.
+/// Two stick-figure frames of a movement pattern, side by side. The start frame carries arrows
+/// at the joints that move; the finish frame carries the start pose as a ghost and the dashed
+/// path of the load (or of the limb that moves, when nothing is held) from there to here.
 struct MovementDiagram: View {
     var pattern: MovementPattern
 
     var body: some View {
         let frames = pattern.frames
+        let motion = pattern.motion
         HStack(spacing: 4) {
-            figure(frames.start, label: "1")
+            figure(FigureCanvas(pose: frames.start, motion: motion, showsTurns: true), label: "Start")
             Image(systemName: "arrow.right").foregroundStyle(.secondary).font(.title3)
-            figure(frames.finish, label: "2")
+            figure(FigureCanvas(pose: frames.finish, ghost: frames.start, motion: motion, showsTurns: false), label: "Finish")
         }
     }
 
-    private func figure(_ pose: FigurePose, label: String) -> some View {
-        FigureCanvas(pose: pose)
+    private func figure(_ canvas: FigureCanvas, label: String) -> some View {
+        canvas
             .aspectRatio(1, contentMode: .fit)
             .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
             .overlay(alignment: .topLeading) {
@@ -125,9 +134,13 @@ struct MovementDiagram: View {
     }
 }
 
-/// Draws one pose. The pose is in a 0...100 square and is scaled to the view.
+/// Draws one pose, with the motion marks that belong on it. The pose is in a 0...100 square and
+/// is scaled to the view.
 private struct FigureCanvas: View {
     var pose: FigurePose
+    var ghost: FigurePose? = nil
+    var motion: MovementMotion
+    var showsTurns: Bool
 
     var body: some View {
         Canvas { context, size in
@@ -139,6 +152,8 @@ private struct FigureCanvas: View {
             let gear = GraphicsContext.Shading.color(Color.accentColor)
             let prop = GraphicsContext.Shading.color(Color.secondary.opacity(0.45))
             let body = GraphicsContext.Shading.color(Color.primary)
+            let faint = GraphicsContext.Shading.color(Color.primary.opacity(0.22))
+            let mark = GraphicsContext.Shading.color(Color.accentColor)
             let bodyWidth = 2.4 * scale
 
             // Props behind the figure.
@@ -163,66 +178,179 @@ private struct FigureCanvas: View {
                 }
             }
 
-            // The figure.
-            var limbs = Path()
-            for (a, b) in [(pose.hip, joints.shoulder), (pose.hip, joints.knee), (joints.knee, joints.ankle),
-                           (joints.shoulder, joints.elbow), (joints.elbow, joints.hand)] {
-                limbs.move(to: pt(a)); limbs.addLine(to: pt(b))
+            // The other frame, as a ghost behind this one.
+            if let ghost {
+                drawFigure(ghost, in: &context, pt: pt, scale: scale, shading: faint, lineWidth: bodyWidth)
+                drawHeld(ghost, in: &context, pt: pt, scale: scale, shading: faint)
             }
-            context.stroke(limbs, with: body, style: StrokeStyle(lineWidth: bodyWidth, lineCap: .round, lineJoin: .round))
-            let r = FigurePose.headRadius * scale
-            let head = pt(joints.head)
-            context.fill(Path(ellipseIn: CGRect(x: head.x - r, y: head.y - r, width: 2 * r, height: 2 * r)), with: body)
 
-            // What it holds, in front.
-            let hand = pt(joints.hand)
-            for item in pose.props {
-                switch item {
-                case .plate:
-                    let r = 4 * scale
-                    context.stroke(Path(ellipseIn: CGRect(x: hand.x - r, y: hand.y - r, width: 2 * r, height: 2 * r)), with: gear, lineWidth: 1.8 * scale)
-                case .plateSmall:
-                    let r = 2 * scale
-                    context.fill(Path(ellipseIn: CGRect(x: hand.x - r, y: hand.y - r, width: 2 * r, height: 2 * r)), with: gear)
-                case .dumbbell:
-                    context.fill(Path(roundedRect: CGRect(x: hand.x - 3.5 * scale, y: hand.y - 1.5 * scale, width: 7 * scale, height: 3 * scale), cornerRadius: scale), with: gear)
-                case .wheel:
-                    let r = 4 * scale
-                    context.stroke(Path(ellipseIn: CGRect(x: hand.x - r, y: hand.y - r, width: 2 * r, height: 2 * r)), with: gear, lineWidth: 1.8 * scale)
-                default:
-                    break
+            // The figure.
+            drawFigure(pose, in: &context, pt: pt, scale: scale, shading: body, lineWidth: bodyWidth)
+
+            // Arrows at the joints that move, and the straight shifts the arcs do not show.
+            if showsTurns {
+                for turn in motion.turns {
+                    let points = turn.points
+                    var arc = Path()
+                    arc.move(to: pt(points[0]))
+                    for p in points.dropFirst() { arc.addLine(to: pt(p)) }
+                    context.stroke(arc, with: mark, style: StrokeStyle(lineWidth: 1.5 * scale, lineCap: .round, lineJoin: .round))
+                    drawArrowhead(from: pt(points[points.count - 2]), to: pt(points[points.count - 1]), in: &context, scale: scale, shading: mark)
+                }
+                for shift in motion.shifts {
+                    context.stroke(Path { $0.move(to: pt(shift.from)); $0.addLine(to: pt(shift.to)) }, with: mark,
+                                   style: StrokeStyle(lineWidth: 1.5 * scale, lineCap: .round))
+                    drawArrowhead(from: pt(shift.from), to: pt(shift.to), in: &context, scale: scale, shading: mark)
                 }
             }
+
+            // What it holds, in front.
+            drawHeld(pose, in: &context, pt: pt, scale: scale, shading: gear)
+
+            // The load path: dashed, with an arrowhead at the finish. Drawn on the finish frame,
+            // where the ghost shows where it started. Drawn last so a short path is not hidden by the bar.
+            let path = motion.path
+            if !showsTurns, let first = path.first, let last = path.last, MovementMotion.distance(first, last) >= 1 {
+                var line = Path()
+                line.move(to: pt(first))
+                for p in path.dropFirst() { line.addLine(to: pt(p)) }
+                context.stroke(line, with: mark, style: StrokeStyle(lineWidth: 1.3 * scale, lineCap: .round, lineJoin: .round, dash: [2.6 * scale, 2.4 * scale]))
+                let r = 1.6 * scale
+                context.fill(Path(ellipseIn: CGRect(x: pt(first).x - r, y: pt(first).y - r, width: 2 * r, height: 2 * r)), with: mark)
+                drawArrowhead(from: pt(path[path.count - 2]), to: pt(last), in: &context, scale: scale, shading: mark)
+            }
+
         }
+    }
+
+    private func drawFigure(_ pose: FigurePose, in context: inout GraphicsContext, pt: (CGPoint) -> CGPoint, scale: Double,
+                            shading: GraphicsContext.Shading, lineWidth: Double) {
+        let joints = pose.joints
+        var limbs = Path()
+        for (a, b) in [(pose.hip, joints.shoulder), (pose.hip, joints.knee), (joints.knee, joints.ankle),
+                       (joints.shoulder, joints.elbow), (joints.elbow, joints.hand)] {
+            limbs.move(to: pt(a)); limbs.addLine(to: pt(b))
+        }
+        context.stroke(limbs, with: shading, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+        let r = FigurePose.headRadius * scale
+        let head = pt(joints.head)
+        context.fill(Path(ellipseIn: CGRect(x: head.x - r, y: head.y - r, width: 2 * r, height: 2 * r)), with: shading)
+    }
+
+    private func drawHeld(_ pose: FigurePose, in context: inout GraphicsContext, pt: (CGPoint) -> CGPoint, scale: Double,
+                          shading: GraphicsContext.Shading) {
+        let hand = pt(pose.joints.hand)
+        for item in pose.props {
+            switch item {
+            case .plate:
+                let r = 4 * scale
+                context.stroke(Path(ellipseIn: CGRect(x: hand.x - r, y: hand.y - r, width: 2 * r, height: 2 * r)), with: shading, lineWidth: 1.8 * scale)
+            case .plateSmall:
+                let r = 2 * scale
+                context.fill(Path(ellipseIn: CGRect(x: hand.x - r, y: hand.y - r, width: 2 * r, height: 2 * r)), with: shading)
+            case .dumbbell:
+                context.fill(Path(roundedRect: CGRect(x: hand.x - 3.5 * scale, y: hand.y - 1.5 * scale, width: 7 * scale, height: 3 * scale), cornerRadius: scale), with: shading)
+            case .wheel:
+                let r = 4 * scale
+                context.stroke(Path(ellipseIn: CGRect(x: hand.x - r, y: hand.y - r, width: 2 * r, height: 2 * r)), with: shading, lineWidth: 1.8 * scale)
+            default:
+                break
+            }
+        }
+    }
+
+    /// A filled arrowhead at `to`, pointing along the line from `from`.
+    private func drawArrowhead(from: CGPoint, to: CGPoint, in context: inout GraphicsContext, scale: Double,
+                               shading: GraphicsContext.Shading) {
+        let dx = to.x - from.x, dy = to.y - from.y
+        let length = hypot(dx, dy)
+        guard length > 0.01 else { return }
+        let ux = dx / length, uy = dy / length
+        let size = 3.8 * scale, half = 2.1 * scale
+        let base = CGPoint(x: to.x - ux * size, y: to.y - uy * size)
+        var head = Path()
+        head.move(to: to)
+        head.addLine(to: CGPoint(x: base.x - uy * half, y: base.y + ux * half))
+        head.addLine(to: CGPoint(x: base.x + uy * half, y: base.y - ux * half))
+        head.closeSubpath()
+        context.fill(head, with: shading)
     }
 }
 
 // MARK: - Muscle map
 
-/// Front and back body outlines with the exercise's muscles shaded: full accent for primary
-/// (weight 1), lighter for secondary.
+extension MuscleInvolvement {
+    /// Green for the primary movers, yellow for the secondary, grey for stabilisers. System
+    /// colours, so they adapt to dark mode; the outline style and the tier list carry the
+    /// same information without colour.
+    var color: Color {
+        switch self {
+        case .primary: .green
+        case .secondary: .yellow
+        case .stabiliser: .gray
+        }
+    }
+
+    var fillOpacity: Double {
+        switch self {
+        case .primary: 0.95
+        case .secondary: 0.9
+        case .stabiliser: 0.5
+        }
+    }
+
+    /// Primary regions get a solid outline, stabilisers a dashed one, secondary none.
+    var dash: [CGFloat]? {
+        switch self {
+        case .primary: []
+        case .secondary: nil
+        case .stabiliser: [2, 1.6]
+        }
+    }
+}
+
+/// Front and back body outlines with the exercise's muscles coloured by tier, and a legend.
 struct MuscleMap: View {
     var muscles: [MuscleWeight]
 
     var body: some View {
-        HStack(spacing: 24) {
-            BodyCanvas(view: .front, muscles: muscles)
-            BodyCanvas(view: .back, muscles: muscles)
-        }
-        .overlay(alignment: .bottom) {
-            HStack(spacing: 16) {
-                legend("Primary", opacity: 1)
-                legend("Secondary", opacity: 0.4)
+        VStack(spacing: 6) {
+            HStack(spacing: 24) {
+                BodyCanvas(view: .front, muscles: muscles)
+                BodyCanvas(view: .back, muscles: muscles)
+            }
+            HStack(spacing: 12) {
+                ForEach(MuscleInvolvement.allCases) { tier in
+                    HStack(spacing: 4) {
+                        MuscleSwatch(tier: tier)
+                        Text(tier.displayName)
+                    }
+                }
+                HStack(spacing: 4) {
+                    MuscleSwatch(tier: nil)
+                    Text("Not worked")
+                }
             }
             .font(.caption2).foregroundStyle(.secondary)
+            .lineLimit(1).minimumScaleFactor(0.8)
         }
     }
+}
 
-    private func legend(_ title: String, opacity: Double) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(Color.accentColor.opacity(opacity)).frame(width: 8, height: 8)
-            Text(title)
-        }
+/// The legend's and the tier list's sample of how a tier is drawn on the map.
+struct MuscleSwatch: View {
+    var tier: MuscleInvolvement?
+
+    var body: some View {
+        Circle()
+            .fill(tier.map { $0.color.opacity($0.fillOpacity) } ?? Color.secondary.opacity(0.15))
+            .overlay {
+                if let dash = tier?.dash {
+                    Circle().strokeBorder(Color.primary.opacity(0.55), style: StrokeStyle(lineWidth: 1, dash: dash.map { $0 * 1.5 }))
+                }
+            }
+            .frame(width: 10, height: 10)
+            .accessibilityHidden(true)
     }
 }
 
@@ -231,8 +359,9 @@ private struct BodyCanvas: View {
     var view: Side
     var muscles: [MuscleWeight]
 
-    /// Regions in a 0...100 × 0...160 box, as (x, y, w, h) ellipses or rounded rects; `mirror`
-    /// draws the same region on the other side of the body.
+    /// Regions in a 0...100 × 0...160 box (the canvas is 170 tall, leaving room for the caption
+    /// under the feet), as (x, y, w, h) ellipses or rounded rects; `mirror` draws the same region
+    /// on the other side of the body.
     private struct Region { var muscle: Muscle; var rect: CGRect; var mirror = true; var ellipse = true }
 
     private static let front: [Region] = [
@@ -243,6 +372,7 @@ private struct BodyCanvas: View {
         Region(muscle: .forearms, rect: CGRect(x: 22, y: 55, width: 8, height: 24)),
         Region(muscle: .abs, rect: CGRect(x: 42, y: 42, width: 16, height: 32), mirror: false, ellipse: false),
         Region(muscle: .quads, rect: CGRect(x: 36, y: 84, width: 13, height: 38)),
+        Region(muscle: .calves, rect: CGRect(x: 38, y: 128, width: 9, height: 24)),
     ]
     private static let back: [Region] = [
         Region(muscle: .upperBack, rect: CGRect(x: 38, y: 24, width: 24, height: 22), mirror: false),
@@ -259,8 +389,8 @@ private struct BodyCanvas: View {
 
     var body: some View {
         Canvas { context, size in
-            let scale = min(size.width / 100, size.height / 160)
-            let offset = CGPoint(x: (size.width - 100 * scale) / 2, y: (size.height - 160 * scale) / 2)
+            let scale = min(size.width / 100, size.height / 170)
+            let offset = CGPoint(x: (size.width - 100 * scale) / 2, y: (size.height - 170 * scale) / 2)
             func r(_ rect: CGRect) -> CGRect {
                 CGRect(x: offset.x + rect.minX * scale, y: offset.y + rect.minY * scale, width: rect.width * scale, height: rect.height * scale)
             }
@@ -277,19 +407,23 @@ private struct BodyCanvas: View {
             }
             context.fill(outline, with: .color(Color.secondary.opacity(0.15)))
 
-            let weights = Dictionary(muscles.map { ($0.muscle, $0.weight) }, uniquingKeysWith: max)
+            let tiers = Dictionary(muscles.compactMap { mw in mw.involvement.map { (mw.muscle, $0) } }, uniquingKeysWith: min)
+            let outlineColor = GraphicsContext.Shading.color(Color.primary.opacity(0.55))
             for region in (view == .front ? Self.front : Self.back) {
-                guard let weight = weights[region.muscle], weight > 0 else { continue }
-                let shading = GraphicsContext.Shading.color(Color.accentColor.opacity(weight >= 1 ? 1 : 0.4))
+                guard let tier = tiers[region.muscle] else { continue }
                 var rects = [region.rect]
                 if region.mirror { rects.append(mirrored(region.rect)) }
                 for rect in rects {
                     let path = region.ellipse ? Path(ellipseIn: r(rect)) : Path(roundedRect: r(rect), cornerRadius: 3 * scale)
-                    context.fill(path, with: shading)
+                    context.fill(path, with: .color(tier.color.opacity(tier.fillOpacity)))
+                    if let dash = tier.dash {
+                        context.stroke(path, with: outlineColor,
+                                       style: StrokeStyle(lineWidth: 0.9 * scale, dash: dash.map { $0 * scale }))
+                    }
                 }
             }
             let label = Text(view == .front ? "Front" : "Back").font(.caption2).foregroundStyle(.secondary)
-            context.draw(label, at: CGPoint(x: size.width / 2, y: offset.y + 160 * scale - 2), anchor: .bottom)
+            context.draw(label, at: CGPoint(x: size.width / 2, y: offset.y + 170 * scale), anchor: .bottom)
         }
     }
 }
