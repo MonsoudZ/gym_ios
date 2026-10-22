@@ -1,0 +1,68 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select the newest Xcode 26
+        run: |
+          xcode=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          echo "Using $xcode"
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # The .xcodeproj is gitignored and generated from project.yml. Generating it here
+      # catches source files that were added without regenerating locally.
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      - name: Pick a simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available --json \
+            | python3 -c 'import json,sys
+          devs = json.load(sys.stdin)["devices"]
+          found = [d for rt, ds in devs.items() if "iOS" in rt for d in ds if d["name"].startswith("iPhone")]
+          print(sorted(found, key=lambda d: d["name"])[-1]["udid"])')
+          echo "Simulator $udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Build and run the tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project GymTracker.xcodeproj \
+            -scheme GymTracker \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath build/Tests.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build/xcodebuild.log \
+            | grep -E "^(Test Suite|Test Case|.*error:|.*warning: .*\.swift|\*\* TEST)" || true
+          grep -q "\*\* TEST SUCCEEDED \*\*" build/xcodebuild.log
+
+      - name: Upload the result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            build/Tests.xcresult
+            build/xcodebuild.log
+          if-no-files-found: ignore
