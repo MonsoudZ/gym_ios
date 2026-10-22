@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import GymTracker
 
 /// Every library exercise has a guide, every guide is complete, and every movement pattern
@@ -163,5 +164,39 @@ final class ExerciseGuideTests: XCTestCase {
         // The shrug has no joint turn: the shoulders shift straight up.
         XCTAssertEqual(MovementPattern.shrug.motion.shifts.map(\.point), ["shoulders"])
         XCTAssertLessThan(MovementPattern.shrug.motion.path.last!.y, MovementPattern.shrug.motion.path.first!.y)
+    }
+
+    // MARK: Body figure
+
+    func testEveryMuscleHasARegionOnTheBodyAndEveryRegionSitsOnIt() {
+        let silhouette = BodyFigure.silhouette
+        let body = silhouette.boundingRect
+        XCTAssertTrue(body.minX > 10 && body.maxX < 90 && body.minY > 0 && body.maxY < 170, "the figure fills its box sensibly: \(body)")
+        XCTAssertEqual(body.midX, 50, accuracy: 0.01, "the figure is symmetric")
+        var covered: Set<Muscle> = []
+        for side in [BodyFigure.Side.front, .back] {
+            for region in BodyFigure.regions(side) {
+                covered.insert(region.muscle)
+                for path in region.paths {
+                    let rect = path.boundingRect
+                    // Sample the shape itself: at least nine in ten of its points lie on the body.
+                    var inside = 0, total = 0
+                    for i in 0..<9 {
+                        for j in 0..<9 {
+                            let point = CGPoint(x: rect.minX + rect.width * (Double(i) + 0.5) / 9, y: rect.minY + rect.height * (Double(j) + 0.5) / 9)
+                            guard path.contains(point) else { continue }
+                            total += 1
+                            if silhouette.contains(point) { inside += 1 }
+                        }
+                    }
+                    XCTAssertGreaterThan(total, 0, "\(side) \(region.muscle) has no area")
+                    XCTAssertGreaterThanOrEqual(Double(inside), Double(total) * 0.9, "\(side) \(region.muscle) hangs off the body at \(rect)")
+                    XCTAssertLessThan(rect.width * rect.height, body.width * body.height / 12, "\(side) \(region.muscle) covers too much of the figure")
+                }
+            }
+            let muscles = BodyFigure.regions(side).map(\.muscle)
+            XCTAssertEqual(Set(muscles).count, muscles.count, "\(side) lists a muscle twice")
+        }
+        XCTAssertEqual(covered, Set(Muscle.allCases), "muscles with no region on either side")
     }
 }
