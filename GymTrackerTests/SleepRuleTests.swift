@@ -30,14 +30,16 @@ final class SleepRuleTests: XCTestCase {
 
     func testStagesAddUpAndOverlapsAreNotDoubleCounted() {
         // Watch writes stages back to back; phone writes one blanket sample over the same night.
+        // The stages alone are 6.5 h; added to the phone's 7 h they would be 13.5. The union
+        // is 7: nothing is counted twice, and the phone's sample covers the watch's gap.
         let samples = [
             SleepInterval(start: at(18, 23), end: at(19, 1)),
             SleepInterval(start: at(19, 1), end: at(19, 3)),
             SleepInterval(start: at(19, 3, 30), end: at(19, 6)),   // 30 min awake gap
-            SleepInterval(start: at(18, 23), end: at(19, 6)),      // phone's duplicate
+            SleepInterval(start: at(18, 23), end: at(19, 6)),      // phone's blanket sample
         ]
         let hours = SleepRule.hoursAsleep(samples, now: morning, calendar: calendar)
-        XCTAssertEqual(hours!, 6.5, accuracy: 0.001)
+        XCTAssertEqual(hours!, 7, accuracy: 0.001)
     }
 
     func testAfternoonNapAndEarlyEveningAreOutsideTheWindow() {
