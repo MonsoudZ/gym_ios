@@ -34,7 +34,9 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Scan food barcodes to look them up in Open Food Facts.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Reads your heart rate variability and resting heart rate so a morning well below your usual can make today's lifts a little lighter.</string>
+	<string>Reads heart rate variability and resting heart rate so a morning well below your usual can make today's lifts a little lighter, last night's sleep for the readiness check-in, and bodyweight for days you did not weigh in here. Each is read only after you turn it on in Settings.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Saves each finished workout to Health as strength training, when turned on in Settings.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UILaunchScreen</key>
