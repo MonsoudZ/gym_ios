@@ -277,6 +277,17 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
   mistyped set stops poisoning them. Clearing a set's reps drops it on leaving; a session
   left with no sets is removed.
 
+**Importing history**
+
+- Settings → Data → Import from Strong or Hevy reads either app's CSV export (one row per
+  set). Workouts come in as finished sessions, so every chart, verdict and personal record
+  includes them. Each exercise name in the file is matched onto the library ("Bench Press
+  (Barbell)" → Barbell Bench Press); names the matcher is not sure of are shown in orange
+  and the lifter picks an exercise, keeps them as a new custom exercise, or skips them. A
+  guess is never silently applied: a wrong match would poison a lift's history. Strong's
+  current export carries no unit, so the screen asks which the account used. Sessions keep
+  the file's key, so importing the same export twice adds nothing.
+
 **Rules of thumb**
 
 - No table has more than four columns on a phone.
@@ -318,7 +329,8 @@ correction fixes everything downstream.
 
 1. ~~Default units: kg or lb?~~ Pounds by default; asked on first launch.
 2. ~~Starting split and goal.~~ Asked on first launch; Upper / Lower and Maintain by default.
-3. Any existing data to import (Strong, Hevy, MacroFactor export)?
+3. ~~Any existing data to import (Strong, Hevy, MacroFactor export)?~~ Strong and Hevy workout
+   exports import from Settings (§4). Nutrition history (MacroFactor) still does not.
 4. Is a food database needed in v1, or are saved meals plus manual entry enough to start?
 
 ---

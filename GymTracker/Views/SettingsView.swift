@@ -213,6 +213,7 @@ private struct SettingsForm: View {
             .onChange(of: settings.saveWorkoutsToHealthEnabled) { _, on in healthToggled(on) { settings.saveWorkoutsToHealthEnabled = false } }
 
             Section("Data") {
+                NavigationLink("Import from Strong or Hevy") { WorkoutImportView() }
                 Button("Load demo data (8 weeks)") {
                     DemoData.load(context: context, exercises: exercises, settings: settings)
                 }
