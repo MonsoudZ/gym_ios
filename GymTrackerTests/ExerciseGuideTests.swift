@@ -55,7 +55,7 @@ final class ExerciseGuideTests: XCTestCase {
         XCTAssertEqual(lying.joints.hand.y, 60 - 25, accuracy: 0.001)
         // Shrug raises the shoulder without moving the torso angle.
         var shrug = standing
-        shrug.props = [.shrugUp]
+        shrug.shoulderLift = 4
         XCTAssertLessThan(shrug.joints.shoulder.y, j.shoulder.y)
     }
 
@@ -209,5 +209,105 @@ final class ExerciseGuideTests: XCTestCase {
             }
         }
         XCTAssertEqual(covered, Set(Muscle.allCases), "muscles with no region on either side")
+    }
+
+    // MARK: Keyframes, callouts and implements
+
+    func testEveryPatternHasThreeDistinctPosesThatStayInsideTheFrame() {
+        for pattern in MovementPattern.allCases {
+            let keyframes = pattern.keyframes
+            XCTAssertEqual(keyframes.count, 3, "\(pattern)")
+            XCTAssertNotEqual(keyframes[0].joints, keyframes[1].joints, "\(pattern): midpoint equals the start")
+            XCTAssertNotEqual(keyframes[1].joints, keyframes[2].joints, "\(pattern): midpoint equals the finish")
+            XCTAssertNotEqual(keyframes[0].joints, keyframes[2].joints, "\(pattern) does not move")
+            for step in 0...8 {
+                let pose = FigurePose.along(keyframes, Double(step) / 8)
+                for point in pose.joints.everything + [pose.hip] {
+                    XCTAssertTrue((-6...106).contains(point.x) && (-6...106).contains(point.y),
+                                  "\(pattern) leaves the frame at step \(step), \(point)")
+                }
+            }
+        }
+    }
+
+    func testTheLoopHoldsAtEachEndAndEasesBetween() {
+        XCTAssertEqual(MovementLoop.liftFraction(at: 0), 0)
+        XCTAssertEqual(MovementLoop.liftFraction(at: 0.1), 0)
+        XCTAssertEqual(MovementLoop.liftFraction(at: 0.31), 0.5, accuracy: 0.001)
+        XCTAssertEqual(MovementLoop.liftFraction(at: 0.55), 1)
+        XCTAssertEqual(MovementLoop.liftFraction(at: 0.81), 0.5, accuracy: 0.001)
+        XCTAssertEqual(MovementLoop.liftFraction(at: 0.999), 0, accuracy: 0.001)
+        XCTAssertEqual(MovementLoop.liftFraction(at: 1.31), 0.5, accuracy: 0.001, "wraps")
+        // Four cues: one per quarter of the loop.
+        XCTAssertEqual((0..<8).map { MovementLoop.step(at: Double($0) / 8, count: 4) }, [0, 0, 1, 1, 2, 2, 3, 3])
+        XCTAssertEqual(MovementLoop.step(at: 0.999, count: 3), 2)
+        XCTAssertEqual(MovementLoop.step(at: 0.3, count: 0), 0)
+        // The figure at the ends of the lift is exactly the start and finish keyframes.
+        let squat = MovementPattern.squat.keyframes
+        XCTAssertEqual(FigurePose.along(squat, 0).joints, squat[0].joints)
+        XCTAssertEqual(FigurePose.along(squat, 1).joints, squat[2].joints)
+    }
+
+    func testPhasesCoverTheLoopAndFadeAtTheirEdges() {
+        XCTAssertEqual(MovementPhase.setup.opacity(at: 0.05), 1)
+        XCTAssertEqual(MovementPhase.setup.opacity(at: 0.4), 0)
+        XCTAssertEqual(MovementPhase.lift.opacity(at: 0.3), 1)
+        XCTAssertEqual(MovementPhase.top.opacity(at: 0.55), 1)
+        XCTAssertEqual(MovementPhase.lower.opacity(at: 0.8), 1)
+        XCTAssertEqual(MovementPhase.always.opacity(at: 0.8), 1)
+        let fading = MovementPhase.setup.opacity(at: MovementLoop.holdStart + 0.03 + 0.025)
+        XCTAssertTrue(fading > 0 && fading < 1, "half way through the fade: \(fading)")
+        for p in stride(from: 0.0, through: 1.0, by: 0.05) {
+            let covered = [MovementPhase.setup, .lift, .top, .lower].contains { $0.opacity(at: p) > 0.99 }
+            XCTAssertTrue(covered, "no phase is fully on at \(p)")
+        }
+    }
+
+    func testEveryPatternHasCalloutsThatAreSentencesOnJoints() {
+        for pattern in MovementPattern.allCases {
+            let callouts = pattern.callouts
+            XCTAssertTrue((2...4).contains(callouts.count), "\(pattern) has \(callouts.count) callouts")
+            for callout in callouts {
+                XCTAssertFalse(callout.text.isEmpty)
+                XCTAssertLessThanOrEqual(callout.text.count, 34, "\(pattern): callout too long to fit beside the figure: \(callout.text)")
+                let point = callout.point(in: pattern.keyframes[0])
+                XCTAssertTrue((-6...106).contains(point.x) && (-6...106).contains(point.y), "\(pattern) callout off the frame")
+            }
+            XCTAssertEqual(Set(callouts.map(\.text)).count, callouts.count, "\(pattern) repeats a callout")
+        }
+    }
+
+    func testEveryExerciseResolvesToAnImplementAndADiagram() {
+        for (name, guide) in ExerciseGuides.all {
+            let keyframes = guide.pattern.keyframes(for: guide.implement)
+            XCTAssertEqual(keyframes.count, 3, name)
+            let loads = keyframes[0].props.filter(\.isLoad)
+            XCTAssertLessThanOrEqual(loads.count, 1, "\(name) holds two things")
+            XCTAssertFalse(keyframes[0].props.contains(.plate) && keyframes[0].props.contains(.dumbbell), name)
+        }
+        func props(_ name: String) -> [FigureProp] { let g = ExerciseGuides.guide(for: name)!; return g.pattern.keyframes(for: g.implement)[0].props }
+        func hasCable(_ p: [FigureProp]) -> Bool { p.contains { if case .cable = $0 { return true } else { return false } } }
+        XCTAssertEqual(ExerciseGuides.guide(for: "Barbell Row")?.implement, .barbell)
+        XCTAssertEqual(ExerciseGuides.guide(for: "Dumbbell Row")?.implement, .dumbbell)
+        XCTAssertTrue(props("Barbell Row").contains(.plate) && !props("Barbell Row").contains(.dumbbell))
+        XCTAssertTrue(props("Dumbbell Row").contains(.dumbbell) && !props("Dumbbell Row").contains(.plate))
+        XCTAssertEqual(ExerciseGuides.guide(for: "Cable Curl")?.implement, .cable)
+        XCTAssertTrue(hasCable(props("Cable Curl")) && props("Cable Curl").contains(.plateSmall))
+        XCTAssertFalse(hasCable(props("Barbell Curl")))
+        XCTAssertEqual(ExerciseGuides.guide(for: "Kettlebell Swing")?.implement, .kettlebell)
+        XCTAssertTrue(props("Kettlebell Swing").contains(.kettlebell))
+        XCTAssertEqual(ExerciseGuides.guide(for: "Smith Machine Squat")?.implement, .smith)
+        XCTAssertTrue(props("Smith Machine Squat").contains(.rails))
+        XCTAssertEqual(ExerciseGuides.guide(for: "Pull-Up")?.implement, .bodyweight)
+        XCTAssertTrue(props("Pull-Up").filter(\.isLoad).isEmpty)
+        XCTAssertEqual(ExerciseGuides.guide(for: "Lat Pulldown")?.pattern, .latPulldown)
+        XCTAssertEqual(ExerciseGuides.guide(for: "Lat Pulldown")?.implement, .machine)
+        XCTAssertTrue(hasCable(props("Lat Pulldown")), "a pulldown keeps the machine's cable")
+        XCTAssertEqual(ExerciseGuides.guide(for: "Leg Press")?.implement, .machine)
+        XCTAssertTrue(props("Leg Press").filter(\.isLoad).isEmpty)
+        XCTAssertEqual(ExerciseGuides.guide(for: "Preacher Curl")?.implement, .ezBar, "the first implement named wins")
+        XCTAssertEqual(ExerciseGuides.guide(for: "Back Extension")?.implement, .bodyweight)
+        XCTAssertEqual(Implement.from(equipment: "Trap bar"), .trapBar)
+        XCTAssertEqual(Implement.from(equipment: "Dumbbells, bench"), .dumbbell)
     }
 }

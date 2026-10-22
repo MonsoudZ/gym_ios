@@ -3,15 +3,15 @@ import Foundation
 /// The movement a library exercise follows, drawn as a two-frame stick figure (side view,
 /// facing right) in `MovementDiagram`. Frame 1 to frame 2 is the lifting phase.
 nonisolated enum MovementPattern: String, CaseIterable, Hashable, Sendable {
-    case benchPress, inclinePress, overheadPress, dip, pushUp, fly, bentRow, supportedRow, verticalPull, straightArmPulldown, deadlift, hinge, backExtension, shrug, lateralRaise, frontRaise, rearDeltFly, uprightRow, curl, overheadExtension, pushdown, skullCrusher, kickback, wristCurl, squat, frontSquat, legPress, lunge, sissySquat, legExtension, legCurl, seatedLegCurl, nordic, hipThrust, gluteBridge, hipAbduction, calfRaise, seatedCalfRaise, crunch, sitUp, legRaise, abWheel, pallofPress
+    case benchPress, inclinePress, overheadPress, dip, pushUp, fly, bentRow, supportedRow, verticalPull, straightArmPulldown, deadlift, hinge, backExtension, shrug, lateralRaise, frontRaise, rearDeltFly, uprightRow, curl, overheadExtension, pushdown, skullCrusher, kickback, wristCurl, squat, frontSquat, legPress, lunge, sissySquat, legExtension, legCurl, seatedLegCurl, nordic, hipThrust, gluteBridge, hipAbduction, calfRaise, seatedCalfRaise, crunch, sitUp, legRaise, abWheel, pallofPress, latPulldown, facePull, seatedReverseFly, machineChestPress, seatedPress
 
     /// Both frames, in a 0...100 square. The poses are schematic: they show which joints move
     /// and in which direction, not exact angles.
     var frames: (start: FigurePose, finish: FigurePose) {
         switch self {
         case .benchPress:
-            (FigurePose(hip: CGPoint(x: 36, y: 58), torso: 90, thigh: 230, shin: 180, arm: 200, forearm: 0, props: [.floor(y: 92), .bench(x1: 20, x2: 68, y: 60), .plate]),
-             FigurePose(hip: CGPoint(x: 36, y: 58), torso: 90, thigh: 230, shin: 180, arm: 0, forearm: 0, props: [.floor(y: 92), .bench(x1: 20, x2: 68, y: 60), .plate]))
+            (FigurePose(hip: CGPoint(x: 36, y: 58), torso: 90, thigh: 230, shin: 180, arm: 200, forearm: 0, props: [.floor(y: 92), .rack(x: 74, y: 26), .bench(x1: 20, x2: 68, y: 60), .plate]),
+             FigurePose(hip: CGPoint(x: 36, y: 58), torso: 90, thigh: 230, shin: 180, arm: 0, forearm: 0, props: [.floor(y: 92), .rack(x: 74, y: 26), .bench(x1: 20, x2: 68, y: 60), .plate]))
         case .inclinePress:
             (FigurePose(hip: CGPoint(x: 30, y: 62), torso: 40, thigh: 210, shin: 180, arm: 200, forearm: 40, props: [.floor(y: 92), .support(x1: 26, y1: 68, x2: 50, y2: 40), .support(x1: 26, y1: 68, x2: 36, y2: 68), .plate]),
              FigurePose(hip: CGPoint(x: 30, y: 62), torso: 40, thigh: 210, shin: 180, arm: 40, forearm: 40, props: [.floor(y: 92), .support(x1: 26, y1: 68, x2: 50, y2: 40), .support(x1: 26, y1: 68, x2: 36, y2: 68), .plate]))
@@ -50,7 +50,7 @@ nonisolated enum MovementPattern: String, CaseIterable, Hashable, Sendable {
              FigurePose(hip: CGPoint(x: 44, y: 56), torso: 60, thigh: 170, shin: 180, arm: 170, forearm: 170, props: [.floor(y: 92), .box(x: 36, y: 58, w: 14, h: 34), .support(x1: 20, y1: 92, x2: 50, y2: 66)]))
         case .shrug:
             (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .plate]),
-             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .plate, .shrugUp]))
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .plate], shoulderLift: 4))
         case .lateralRaise:
             (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 175, forearm: 175, props: [.floor(y: 92), .dumbbell]),
              FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 90, forearm: 90, props: [.floor(y: 92), .dumbbell]))
@@ -82,11 +82,11 @@ nonisolated enum MovementPattern: String, CaseIterable, Hashable, Sendable {
             (FigurePose(hip: CGPoint(x: 44, y: 62), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 100, props: [.floor(y: 92), .box(x: 40, y: 78, w: 22, h: 14), .plate]),
              FigurePose(hip: CGPoint(x: 44, y: 62), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 80, props: [.floor(y: 92), .box(x: 40, y: 78, w: 22, h: 14), .plate]))
         case .squat:
-            (FigurePose(hip: CGPoint(x: 38, y: 66), torso: 30, thigh: 95, shin: 190, arm: 300, forearm: 20, props: [.floor(y: 92), .plate]),
-             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 300, forearm: 20, props: [.floor(y: 92), .plate]))
+            (FigurePose(hip: CGPoint(x: 38, y: 66), torso: 30, thigh: 95, shin: 190, arm: 300, forearm: 20, props: [.floor(y: 92), .rack(x: 16, y: 30), .plate]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 300, forearm: 20, props: [.floor(y: 92), .rack(x: 16, y: 30), .plate]))
         case .frontSquat:
-            (FigurePose(hip: CGPoint(x: 42, y: 66), torso: 10, thigh: 100, shin: 190, arm: 100, forearm: 0, props: [.floor(y: 92), .plate]),
-             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 100, forearm: 0, props: [.floor(y: 92), .plate]))
+            (FigurePose(hip: CGPoint(x: 42, y: 66), torso: 10, thigh: 100, shin: 190, arm: 100, forearm: 0, props: [.floor(y: 92), .rack(x: 16, y: 30), .plate]),
+             FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 100, forearm: 0, props: [.floor(y: 92), .rack(x: 16, y: 30), .plate]))
         case .legPress:
             (FigurePose(hip: CGPoint(x: 40, y: 66), torso: 315, thigh: 40, shin: 100, arm: 90, forearm: 150, props: [.support(x1: 46, y1: 74, x2: 12, y2: 40), .box(x: 10, y: 80, w: 40, h: 6), .support(x1: 74, y1: 42, x2: 68, y2: 72)]),
              FigurePose(hip: CGPoint(x: 40, y: 66), torso: 315, thigh: 60, shin: 70, arm: 90, forearm: 150, props: [.support(x1: 46, y1: 74, x2: 12, y2: 40), .box(x: 10, y: 80, w: 40, h: 6), .support(x1: 80, y1: 36, x2: 72, y2: 68)]))
@@ -97,14 +97,14 @@ nonisolated enum MovementPattern: String, CaseIterable, Hashable, Sendable {
             (FigurePose(hip: CGPoint(x: 50, y: 56), torso: 340, thigh: 100, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92)]),
              FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92)]))
         case .legExtension:
-            (FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92)]),
-             FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 90, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92)]))
+            (FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92), .anklePad]),
+             FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 90, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92), .anklePad]))
         case .legCurl:
-            (FigurePose(hip: CGPoint(x: 44, y: 66), torso: 270, thigh: 90, shin: 90, arm: 270, forearm: 180, props: [.floor(y: 92), .bench(x1: 16, x2: 78, y: 68)]),
-             FigurePose(hip: CGPoint(x: 44, y: 66), torso: 270, thigh: 90, shin: 10, arm: 270, forearm: 180, props: [.floor(y: 92), .bench(x1: 16, x2: 78, y: 68)]))
+            (FigurePose(hip: CGPoint(x: 44, y: 66), torso: 270, thigh: 90, shin: 90, arm: 270, forearm: 180, props: [.floor(y: 92), .bench(x1: 16, x2: 78, y: 68), .anklePad], footAngle: 180),
+             FigurePose(hip: CGPoint(x: 44, y: 66), torso: 270, thigh: 90, shin: 10, arm: 270, forearm: 180, props: [.floor(y: 92), .bench(x1: 16, x2: 78, y: 68), .anklePad], footAngle: 100))
         case .seatedLegCurl:
-            (FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 90, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92)]),
-             FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 170, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92)]))
+            (FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 90, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92), .anklePad]),
+             FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 170, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92), .anklePad]))
         case .nordic:
             (FigurePose(hip: CGPoint(x: 44, y: 66), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 120, props: [.floor(y: 92), .box(x: 66, y: 86, w: 14, h: 6)]),
              FigurePose(hip: CGPoint(x: 44, y: 66), torso: 70, thigh: 90, shin: 180, arm: 160, forearm: 110, props: [.floor(y: 92), .box(x: 66, y: 86, w: 14, h: 6)]))
@@ -115,8 +115,8 @@ nonisolated enum MovementPattern: String, CaseIterable, Hashable, Sendable {
             (FigurePose(hip: CGPoint(x: 48, y: 84), torso: 265, thigh: 56, shin: 180, arm: 120, forearm: 120, props: [.floor(y: 92), .plate]),
              FigurePose(hip: CGPoint(x: 48, y: 74), torso: 250, thigh: 80, shin: 180, arm: 110, forearm: 110, props: [.floor(y: 92), .plate]))
         case .hipAbduction:
-            (FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92)]),
-             FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 60, shin: 180, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92)]))
+            (FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 90, shin: 180, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92), .anklePad]),
+             FigurePose(hip: CGPoint(x: 44, y: 60), torso: 0, thigh: 60, shin: 180, arm: 180, forearm: 180, props: [.box(x: 30, y: 70, w: 30, h: 22), .support(x1: 22, y1: 60, x2: 24, y2: 92), .anklePad]))
         case .calfRaise:
             (FigurePose(hip: CGPoint(x: 46, y: 52), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .box(x: 36, y: 86, w: 20, h: 6), .dumbbell]),
              FigurePose(hip: CGPoint(x: 46, y: 48), torso: 0, thigh: 180, shin: 180, arm: 180, forearm: 180, props: [.floor(y: 92), .box(x: 36, y: 86, w: 20, h: 6), .dumbbell]))
@@ -138,6 +138,21 @@ nonisolated enum MovementPattern: String, CaseIterable, Hashable, Sendable {
         case .pallofPress:
             (FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 120, forearm: 0, props: [.floor(y: 92), .cable(x: 95, y: 32), .plateSmall]),
              FigurePose(hip: CGPoint(x: 46, y: 55), torso: 0, thigh: 180, shin: 180, arm: 90, forearm: 90, props: [.floor(y: 92), .cable(x: 95, y: 32), .plateSmall]))
+        case .latPulldown:
+            (FigurePose(hip: CGPoint(x: 46, y: 62), torso: 5, thigh: 90, shin: 180, arm: 15, forearm: 345, props: [.floor(y: 92), .box(x: 34, y: 72, w: 24, h: 20), .support(x1: 58, y1: 64, x2: 72, y2: 64), .cable(x: 50, y: 2), .plateSmall]),
+             FigurePose(hip: CGPoint(x: 46, y: 62), torso: 5, thigh: 90, shin: 180, arm: 200, forearm: 20, props: [.floor(y: 92), .box(x: 34, y: 72, w: 24, h: 20), .support(x1: 58, y1: 64, x2: 72, y2: 64), .cable(x: 50, y: 2), .plateSmall]))
+        case .facePull:
+            (FigurePose(hip: CGPoint(x: 42, y: 55), torso: 0, thigh: 180, shin: 180, arm: 90, forearm: 90, props: [.floor(y: 92), .cable(x: 95, y: 28), .plateSmall]),
+             FigurePose(hip: CGPoint(x: 42, y: 55), torso: 0, thigh: 180, shin: 180, arm: 130, forearm: 10, props: [.floor(y: 92), .cable(x: 95, y: 28), .plateSmall]))
+        case .seatedReverseFly:
+            (FigurePose(hip: CGPoint(x: 40, y: 62), torso: 0, thigh: 90, shin: 180, arm: 90, forearm: 90, props: [.floor(y: 92), .box(x: 28, y: 72, w: 24, h: 20), .support(x1: 52, y1: 36, x2: 52, y2: 62), .plateSmall]),
+             FigurePose(hip: CGPoint(x: 40, y: 62), torso: 0, thigh: 90, shin: 180, arm: 165, forearm: 160, props: [.floor(y: 92), .box(x: 28, y: 72, w: 24, h: 20), .support(x1: 52, y1: 36, x2: 52, y2: 62), .plateSmall]))
+        case .machineChestPress:
+            (FigurePose(hip: CGPoint(x: 38, y: 62), torso: 0, thigh: 90, shin: 180, arm: 110, forearm: 330, props: [.floor(y: 92), .box(x: 26, y: 72, w: 24, h: 20), .support(x1: 32, y1: 32, x2: 32, y2: 62), .plateSmall]),
+             FigurePose(hip: CGPoint(x: 38, y: 62), torso: 0, thigh: 90, shin: 180, arm: 90, forearm: 90, props: [.floor(y: 92), .box(x: 26, y: 72, w: 24, h: 20), .support(x1: 32, y1: 32, x2: 32, y2: 62), .plateSmall]))
+        case .seatedPress:
+            (FigurePose(hip: CGPoint(x: 40, y: 62), torso: 0, thigh: 90, shin: 180, arm: 160, forearm: 340, props: [.floor(y: 92), .box(x: 28, y: 72, w: 24, h: 20), .support(x1: 34, y1: 34, x2: 34, y2: 62), .plate]),
+             FigurePose(hip: CGPoint(x: 40, y: 62), torso: 0, thigh: 90, shin: 180, arm: 0, forearm: 0, props: [.floor(y: 92), .box(x: 28, y: 72, w: 24, h: 20), .support(x1: 34, y1: 34, x2: 34, y2: 62), .plate]))
         }    }
 }
 
@@ -154,7 +169,19 @@ nonisolated enum FigureProp: Hashable, Sendable {
     case dumbbell
     case post         // a dip bar: from the hand to the floor
     case wheel
-    case shrugUp      // draws the shoulder a little higher than the torso puts it
+    case kettlebell
+    case handle       // a machine grip, at the hand
+    case rack(x: Double, y: Double)   // an upright with a J-hook at the bar's resting height
+    case rails        // Smith machine rails, through the bar
+    case anklePad     // a machine's roller pad, at the ankle
+
+    /// Whether this is the load in the hands, which the exercise's implement decides.
+    var isLoad: Bool {
+        switch self {
+        case .plate, .plateSmall, .dumbbell, .kettlebell, .handle: true
+        default: false
+        }
+    }
 }
 
 /// A side-view stick figure, built from the hip outward. Angles are in degrees with 0 pointing
@@ -175,16 +202,30 @@ nonisolated struct FigurePose: Hashable, Sendable {
     var arm: Double
     var forearm: Double
     var props: [FigureProp] = []
+    /// How far the shoulders are raised toward the ears (a shrug), in figure units.
+    var shoulderLift: Double = 0
+    /// The foot's direction, heel to toe; nil points it forward, at right angles to the shin.
+    var footAngle: Double? = nil
+
+    static let neckLength = 3.0
+    static let footLength = 7.5
+    static let heelLength = 2.5
 
     nonisolated struct Joints: Hashable, Sendable {
         var shoulder: CGPoint
+        var neck: CGPoint
         var head: CGPoint
         var knee: CGPoint
         var ankle: CGPoint
+        var heel: CGPoint
+        var toe: CGPoint
         var elbow: CGPoint
         var hand: CGPoint
 
+        /// The articulated points, for bounds checks.
         var all: [CGPoint] { [shoulder, head, knee, ankle, elbow, hand] }
+        /// Everything drawn, feet included.
+        var everything: [CGPoint] { all + [neck, heel, toe] }
     }
 
     private static func step(_ from: CGPoint, _ degrees: Double, _ length: Double) -> CGPoint {
@@ -194,13 +235,17 @@ nonisolated struct FigurePose: Hashable, Sendable {
 
     var joints: Joints {
         var shoulder = Self.step(hip, torso, Self.torsoLength)
-        if props.contains(.shrugUp) { shoulder.y -= 4 }
+        shoulder.y -= shoulderLift
+        let neck = Self.step(shoulder, torso, Self.neckLength)
         let head = Self.step(shoulder, torso, Self.headOffset)
         let knee = Self.step(hip, thigh, Self.thighLength)
         let ankle = Self.step(knee, shin, Self.shinLength)
+        let foot = footAngle ?? (shin - 90)
+        let heel = Self.step(ankle, foot + 180, Self.heelLength)
+        let toe = Self.step(ankle, foot, Self.footLength)
         let elbow = Self.step(shoulder, arm, Self.upperArmLength)
         let hand = Self.step(elbow, forearm, Self.forearmLength)
-        return Joints(shoulder: shoulder, head: head, knee: knee, ankle: ankle, elbow: elbow, hand: hand)
+        return Joints(shoulder: shoulder, neck: neck, head: head, knee: knee, ankle: ankle, heel: heel, toe: toe, elbow: elbow, hand: hand)
     }
 }
 
@@ -218,17 +263,20 @@ nonisolated extension FigurePose {
     func interpolated(to other: FigurePose, _ t: Double) -> FigurePose {
         func lerp(_ a: Double, _ b: Double) -> Double { a + (b - a) * t }
         func angle(_ a: Double, _ b: Double) -> Double { a + Self.turn(from: a, to: b) * t }
+        var foot: Double? = nil
+        if let a = footAngle, let b = other.footAngle { foot = angle(a, b) } else { foot = t < 0.5 ? footAngle : other.footAngle }
         return FigurePose(hip: CGPoint(x: lerp(hip.x, other.hip.x), y: lerp(hip.y, other.hip.y)),
                           torso: angle(torso, other.torso), thigh: angle(thigh, other.thigh), shin: angle(shin, other.shin),
                           arm: angle(arm, other.arm), forearm: angle(forearm, other.forearm),
-                          props: t < 0.5 ? props : other.props)
+                          props: t < 0.5 ? props : other.props,
+                          shoulderLift: lerp(shoulderLift, other.shoulderLift), footAngle: foot)
     }
 
     /// Whether the figure holds a load whose path is worth drawing.
     var holdsLoad: Bool {
         props.contains { prop in
             switch prop {
-            case .plate, .plateSmall, .dumbbell, .wheel, .cable: true
+            case .plate, .plateSmall, .dumbbell, .kettlebell, .handle, .wheel, .cable: true
             default: false
             }
         }
@@ -280,6 +328,12 @@ nonisolated struct MovementMotion: Hashable, Sendable {
     static func distance(_ a: CGPoint, _ b: CGPoint) -> Double { hypot(a.x - b.x, a.y - b.y) }
 
     init(start: FigurePose, finish: FigurePose) {
+        self.init(keyframes: [start, start.interpolated(to: finish, 0.5), finish])
+    }
+
+    /// `keyframes` is start, midpoint, finish; the path is sampled along the whole curve.
+    init(keyframes: [FigurePose]) {
+        let start = keyframes.first!, finish = keyframes.last!
         let a = start.joints, b = finish.joints
         // Hips first: when the whole body moves (a pull-up, a dip), that is the path to show.
         let candidates: [(Anchor, CGPoint, CGPoint)] = [
@@ -293,9 +347,9 @@ nonisolated struct MovementMotion: Hashable, Sendable {
             moving = candidates.max { Self.distance($0.1, $0.2) < Self.distance($1.1, $1.2) }!.0
         }
         anchor = moving
-        let steps = 16
+        let steps = 24
         path = (0...steps).map { i in
-            let pose = start.interpolated(to: finish, Double(i) / Double(steps))
+            let pose = FigurePose.along(keyframes, Double(i) / Double(steps))
             let j = pose.joints
             switch moving {
             case .hand: return j.hand
@@ -338,8 +392,7 @@ nonisolated struct MovementMotion: Hashable, Sendable {
 nonisolated extension MovementPattern {
     /// The motion between the two frames, for the arrows and the load path.
     var motion: MovementMotion {
-        let both = frames
-        return MovementMotion(start: both.start, finish: both.finish)
+        MovementMotion(keyframes: keyframes)
     }
 
     /// What the dashed line in the diagram follows.
