@@ -61,8 +61,17 @@ struct WorkoutView: View {
                     .font(.subheadline)
                     .buttonStyle(.borderless)
                 } header: {
-                    HStack {
-                        Text(exercise.name)
+                    // The name opens the guide as a sheet; the rest keeps running underneath,
+                    // since the timer is shared and not owned by this screen.
+                    HStack(spacing: 6) {
+                        Button { showingGuide = exercise } label: {
+                            HStack(spacing: 5) {
+                                Text(exercise.name)
+                                Image(systemName: "info.circle").imageScale(.small)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(exercise.name), how to do it")
                         Spacer()
                         exerciseMenu(exercise, hasLoggedSets: exerciseSets.contains { $0.reps > 0 })
                     }

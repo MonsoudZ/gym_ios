@@ -239,6 +239,10 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
   bottom: time left, +30 s, skip. A haptic marks the end of the rest. Warm-ups start no timer.
   A local notification fires at zero when the phone is locked (asked for on the first rest).
 - "Add set" under each exercise, "Add exercise" at the end, swipe right to mark a warm-up.
+- Tapping an exercise's name (or **How to do it** in its ⋯ menu) opens its guide as a sheet:
+  the animated movement diagram, cues, muscle map and a History tab. The rest countdown keeps
+  running underneath and nothing typed is lost; the sheet is a window onto the exercise, not
+  a different screen. A long press on a lift in the Today plan opens the same sheet.
 - Each exercise has a ⋯ menu for today only; the program is never edited. **Swap** replaces
   its unlogged sets with another exercise (same-muscle ones listed first) at the weight that
   exercise's own history prescribes. **Skip** drops its unlogged sets. Sets already logged
@@ -254,6 +258,13 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
   Deload sessions carry an orange diamond on the line, and their row says what happened:
   "Deloaded 10%: 80 → 72.5 kg, after stalling 3 sessions". Rows at or past the stall
   threshold say "Stalled N sessions", so the Today card's decision can be traced back.
+- Per lift, History tab (on the exercise's guide sheet, so it is also one tap from a workout):
+  three personal records, each with the set that produced it and the date, and a comparison to
+  the latest session: best e1RM ("120 kg · 100 kg × 5 @ RPE 8 · 3 Mar · latest 115 kg"), the
+  heaviest set inside the exercise's rep range, and the most reps at the heaviest weight ever
+  lifted. Warm-ups never count. Under them, the last five sessions with their sets and verdicts;
+  tapping one opens the session editor, so a mistyped set can be corrected and the record goes
+  with it. The trend chart lives on the Progress tab only.
 - Per muscle: weekly hard sets as a bar chart against the 10 / 20 bands.
 - Bodyweight: trend line over raw dots, with the goal slope drawn as a reference.
 - Expenditure: current estimate, confidence, and how it has moved. A "Past checks" row

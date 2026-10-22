@@ -12,6 +12,8 @@ struct TodayView: View {
     @Query private var readinessEntries: [ReadinessEntry]
 
     @State private var activeSession: WorkoutSession?
+    @State private var showingGuide: Exercise?
+    @State private var guideTab: ExerciseDetailView.Tab = .guide
     /// Keeps the readiness inputs open while the lifter is typing; reset whenever the tab is shown.
     @State private var editingReadiness = false
 
@@ -113,6 +115,7 @@ struct TodayView: View {
             .navigationDestination(for: Program.self) { ProgramEditorView(program: $0) }
             .navigationDestination(for: WorkoutSession.self) { WorkoutView(session: $0) }
             .navigationDestination(item: $activeSession) { WorkoutView(session: $0) }
+            .sheet(item: $showingGuide) { ExerciseGuideSheet(exercise: $0, initialTab: guideTab) }
             .onAppear { editingReadiness = false }
         }
     }
@@ -284,6 +287,10 @@ struct TodayView: View {
                             Text(item.prescription.reason)
                                 .font(.caption).foregroundStyle(.secondary)
                         }
+                    }
+                    .contextMenu {
+                        Button("How to do it", systemImage: "info.circle") { guideTab = .guide; showingGuide = item.exercise }
+                        Button("Records and history", systemImage: "clock.arrow.circlepath") { guideTab = .history; showingGuide = item.exercise }
                     }
                 }
             }
