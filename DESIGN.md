@@ -234,7 +234,13 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
 
 - Prescribed weight × reps for the current set, big.
 - Last session's result for the same set, small, underneath.
-- RPE picker inline. No menus.
+- Weight and reps are − / + steppers: weight moves by the lift's plate step (5 lb on a
+  barbell, 2.5 kg, 2 kg on dumbbells) and snaps to that grid, reps by one, and holding a
+  button repeats. The number is still tappable to type, with a Done bar on the keyboard.
+  Stepping up from an empty field starts at this session's last set, else last session's
+  top set, else the rep target, so a set is usually one or two taps from logged.
+- RPE is a menu whose entries say reps left ("RPE 8 · 2 left"), never a bare number.
+- The set number at the start of the row is the done button: it fills green once tapped.
 - Ticking a set done dims the row and starts the exercise's rest countdown in a bar at the
   bottom: time left, +30 s, skip. A haptic marks the end of the rest. Warm-ups start no timer.
   A local notification fires at zero when the phone is locked (asked for on the first rest).
