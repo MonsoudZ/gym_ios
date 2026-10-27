@@ -29,7 +29,7 @@ final class IntakeEntry {
 
     /// The timestamp for a food logged against `day`: now when that is today, else noon on
     /// that day, so a backdated entry sorts into its day whatever the time zone does.
-    static func timestamp(for day: Date, now: Date = .now, calendar: Calendar = .current) -> Date {
+    nonisolated static func timestamp(for day: Date, now: Date = .now, calendar: Calendar = .current) -> Date {
         if calendar.isDate(day, inSameDayAs: now) { return now }
         return calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day) ?? day
     }
