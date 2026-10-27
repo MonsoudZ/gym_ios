@@ -24,6 +24,24 @@ final class ProgramTests: XCTestCase {
     }
 
     @MainActor
+    func testChosenDayOverridesRotationUntilItIsGone() {
+        let program = program(days: ["Upper", "Lower"])
+        let upper = WorkoutSession(date: .now, templateDayName: "Upper")
+        upper.programDayID = program.orderedDays[0].id
+        upper.isCompleted = true
+        // Rotation says Lower; the lifter picks Upper again.
+        XCTAssertEqual(PlanService.day(in: program, chosenID: nil, completedSessions: [upper])?.name, "Lower")
+        XCTAssertEqual(PlanService.day(in: program, chosenID: program.orderedDays[0].id, completedSessions: [upper])?.name, "Upper")
+        // A day that is no longer in the program falls back to the rotation.
+        XCTAssertEqual(PlanService.day(in: program, chosenID: UUID(), completedSessions: [upper])?.name, "Lower")
+        // After the out-of-order day is completed, the rotation carries on from it.
+        let again = WorkoutSession(date: .now.addingTimeInterval(60), templateDayName: "Upper")
+        again.programDayID = program.orderedDays[0].id
+        again.isCompleted = true
+        XCTAssertEqual(PlanService.nextDay(in: program, completedSessions: [upper, again])?.name, "Lower")
+    }
+
+    @MainActor
     func testNextDayIsNilForEmptyProgram() {
         XCTAssertNil(PlanService.nextDay(in: Program(name: "Empty"), completedSessions: []))
     }

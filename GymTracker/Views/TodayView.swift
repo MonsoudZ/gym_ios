@@ -14,6 +14,9 @@ struct TodayView: View {
     @State private var activeSession: WorkoutSession?
     @State private var showingGuide: Exercise?
     @State private var guideTab: ExerciseDetailView.Tab = .guide
+    /// A day picked in place of the next in rotation, until a workout is started.
+    @State private var chosenDayID: UUID?
+    @State private var confirmDiscard = false
     /// Keeps the readiness inputs open while the lifter is typing; reset whenever the tab is shown.
     @State private var editingReadiness = false
 
@@ -69,7 +72,7 @@ struct TodayView: View {
 
     private func makeToday() -> Today? {
         guard let activeProgram, let settings,
-              let day = PlanService.nextDay(in: activeProgram, completedSessions: completed) else { return nil }
+              let day = PlanService.day(in: activeProgram, chosenID: chosenDayID, completedSessions: completed) else { return nil }
         let plan = PlanService.plan(day: day, exercises: exercises, completedSessions: completed,
                                     readiness: readiness, metric: settings.usesMetric)
         return Today(day: day, plan: plan)
@@ -84,6 +87,16 @@ struct TodayView: View {
                         NavigationLink(value: inProgress) {
                             Label("Continue \(inProgress.templateDayName)", systemImage: "play.fill")
                         }
+                        Button("Not today: discard and pick another day", systemImage: "xmark.circle", role: .destructive) {
+                            if inProgress.loggedSetCount > 0 { confirmDiscard = true } else { discard(inProgress) }
+                        }
+                    } footer: {
+                        Text("A workout stays here until it is finished or discarded. Discarding one with logged sets loses them.")
+                    }
+                    .confirmationDialog("Discard \(inProgress.templateDayName)? \(inProgress.loggedSetCount) logged set\(inProgress.loggedSetCount == 1 ? "" : "s") will be lost.",
+                                        isPresented: $confirmDiscard, titleVisibility: .visible) {
+                        Button("Discard workout", role: .destructive) { discard(inProgress) }
+                        Button("Keep it", role: .cancel) {}
                     }
                 } else if let today {
                     headlineSection(today)
@@ -124,7 +137,7 @@ struct TodayView: View {
         if let headline = today.headline, let settings {
             Section {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(today.day.name).font(.title2.bold())
+                    dayPicker(today)
                     Text(headlineText(headline, metric: settings.usesMetric))
                         .font(.headline.monospacedDigit())
                     if let action = headline.prescription.stallAction {
@@ -152,6 +165,42 @@ struct TodayView: View {
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
             }
+        }
+    }
+
+    /// The day's name as a menu of every day in the program, so a lift can be done out of
+    /// order. The rotation carries on from whatever day is completed.
+    @ViewBuilder private func dayPicker(_ today: Today) -> some View {
+        if let activeProgram {
+            let next = PlanService.nextDay(in: activeProgram, completedSessions: completed)
+            Menu {
+                ForEach(activeProgram.orderedDays, id: \.id) { day in
+                    Button {
+                        chosenDayID = day.id == next?.id ? nil : day.id
+                    } label: {
+                        if day.id == today.day.id {
+                            Label(day.name, systemImage: "checkmark")
+                        } else if day.id == next?.id {
+                            Text("\(day.name) (next in rotation)")
+                        } else {
+                            Text(day.name)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(today.day.name).font(.title2.bold())
+                    Image(systemName: "chevron.down.circle.fill").font(.body).foregroundStyle(.secondary)
+                }
+                .foregroundStyle(.primary)
+            }
+            .accessibilityLabel("Today's day: \(today.day.name). Double tap to choose another.")
+            if let next, next.id != today.day.id {
+                Text("Out of order. \(next.name) was next; the rotation carries on from \(today.day.name) once it is done.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        } else {
+            Text(today.day.name).font(.title2.bold())
         }
     }
 
@@ -336,7 +385,15 @@ struct TodayView: View {
             }
         }
         context.saveOrLog()
+        chosenDayID = nil
         activeSession = session
+    }
+
+    /// Drops an unfinished workout so another day can be started. Its sets go with it.
+    private func discard(_ session: WorkoutSession) {
+        RestTimer.shared.finishWorkout()
+        context.delete(session)
+        context.saveOrLog()
     }
 }
 

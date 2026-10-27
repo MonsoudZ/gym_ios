@@ -225,6 +225,9 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
 
 **Today screen**
 
+- The day's name is a menu of every day in the program. The next in rotation is the default;
+  picking another plans that day instead, and once it is completed the rotation carries on
+  from it. An unfinished workout can be discarded from here to start a different day.
 - One line: today's session name and the single most important change
   ("Bench: 82.5 kg × 3 sets of 6–8, up from 80").
 - One line: calorie and protein target with progress bar.

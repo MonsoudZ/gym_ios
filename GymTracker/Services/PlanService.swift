@@ -21,6 +21,14 @@ enum PlanService {
         return days[(index + 1) % days.count]
     }
 
+    /// The day to plan for today: the one the lifter picked, if it is still in the program,
+    /// otherwise the next in rotation. Picking a day does not edit the rotation; after it is
+    /// completed, `nextDay` carries on from it.
+    static func day(in program: Program, chosenID: UUID?, completedSessions: [WorkoutSession]) -> ProgramDay? {
+        if let chosenID, let chosen = program.orderedDays.first(where: { $0.id == chosenID }) { return chosen }
+        return nextDay(in: program, completedSessions: completedSessions)
+    }
+
     /// Hard sets per muscle over the 7 days ending at `asOf`. Shown on the Progress tab.
     static func weeklyVolume(completedSessions: [WorkoutSession], asOf: Date = .now) -> [Muscle: Double] {
         let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: asOf)!
