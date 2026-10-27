@@ -9,6 +9,8 @@ final class Exercise {
     /// The library entry this exercise was seeded from, if any. Survives renaming, so the
     /// seeder does not recreate a renamed library lift and unit changes still find its plate step.
     var librarySpecName: String?
+    /// The lifter's own note: setup, cues, what hurt last time. Shown in the workout and the guide.
+    var notes: String?
     var muscles: [MuscleWeight]
     var repRangeLow: Int
     var repRangeHigh: Int

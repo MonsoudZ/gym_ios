@@ -376,3 +376,40 @@ final class PlanServiceTests: XCTestCase {
         XCTAssertNil(settings.legacyTemplateName)
     }
 }
+
+/// The volume lines on the Today tab (DESIGN.md §2.5).
+final class VolumeNotesTests: XCTestCase {
+    @MainActor
+    private func planned(_ name: String, stallStreak: Int = 0) -> PlannedExercise {
+        let exercise = Exercise(spec: ExerciseLibrary.spec(name)!)
+        var prescription = Prescription(weight: 80, repRangeLow: 6, repRangeHigh: 8, setCount: 3, reason: "")
+        prescription.stallStreak = stallStreak
+        return PlannedExercise(exercise: exercise, prescription: prescription)
+    }
+
+    @MainActor
+    func testLowVolumeSuggestsASetHighAndStallingSuggestsDroppingTwo() {
+        let plan = [planned("Barbell Bench Press"), planned("Lateral Raise", stallStreak: 2), planned("Barbell Curl")]
+        let volume: [Muscle: Double] = [.chest: 6, .sideDelt: 24, .biceps: 14]
+        let notes = PlanService.volumeNotes(plan: plan, volume: volume)
+        XCTAssertEqual(notes.map(\.muscle), [.chest, .sideDelt], "biceps are in range and say nothing")
+        XCTAssertEqual(notes[0].band, .low)
+        XCTAssertTrue(notes[0].text.contains("Barbell Bench Press"))
+        XCTAssertEqual(notes[1].band, .high)
+        XCTAssertTrue(notes[1].text.contains("Drop two sets"))
+    }
+
+    @MainActor
+    func testHighVolumeWithoutAStallIsOnlyAnObservation() {
+        let notes = PlanService.volumeNotes(plan: [planned("Lateral Raise")], volume: [.sideDelt: 22])
+        XCTAssertEqual(notes.count, 1)
+        XCTAssertFalse(notes[0].text.contains("Drop"))
+    }
+
+    @MainActor
+    func testUntrainedMuscleCountsAsZero() {
+        let notes = PlanService.volumeNotes(plan: [planned("Barbell Curl")], volume: [:])
+        XCTAssertEqual(notes.first?.sets, 0)
+        XCTAssertEqual(notes.first?.band, .low)
+    }
+}

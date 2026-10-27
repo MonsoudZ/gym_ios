@@ -97,6 +97,8 @@ nonisolated struct Prescription: Hashable, Sendable {
     var setCount: Int
     var reason: String
     var rpeCap: Double = 9
+    /// Last session's top load, when today's differs from it: what "up from 80" refers to.
+    var previousWeight: Double? = nil
     var lastVerdict: Verdict? = nil
     var stallStreak: Int = 0
     var stallAction: StallAction? = nil
@@ -258,6 +260,9 @@ nonisolated enum ProgressionEngine {
                 result.stallAction = .deload
                 result.weight = reduce(lastWeight, by: deloadFactor, increment: config.increment)
                 result.reason = "Stalled for \(stall.streak) sessions. Deload 10% to \(formatWeight(result.weight)) and climb back."
+                if everySetAtFailure(history.suffix(max(1, stall.streak))) {
+                    result.reason += " Every set was RPE 10; stop a rep or two short of failure on the way back up."
+                }
             }
         } else {
             switch lastVerdict {
@@ -289,7 +294,21 @@ nonisolated enum ProgressionEngine {
                 result.reason += " Readiness is low, but 5% is less than a plate step here, so the load stays."
             }
         }
+        if result.weight != lastWeight { result.previousWeight = lastWeight }
         return result
+    }
+
+    /// Every working set in these sessions was taken to RPE 10. Going to failure on every set
+    /// while stalling is the pattern the spec says to flag (DESIGN.md §2.1).
+    static func everySetAtFailure<S: Sequence>(_ sessions: S) -> Bool where S.Element == SessionResult {
+        var any = false
+        for session in sessions {
+            for set in session.sets where !set.isWarmup && set.reps > 0 {
+                any = true
+                if (set.rpe ?? 10) < 10 { return false }
+            }
+        }
+        return any
     }
 
     static func format(_ value: Double) -> String {

@@ -7,6 +7,14 @@ struct PlannedExercise: Identifiable {
     var id: UUID { exercise.id }
 }
 
+/// One line about a muscle's weekly volume, shown on the Today tab.
+nonisolated struct VolumeNote: Hashable, Sendable {
+    var muscle: Muscle
+    var sets: Double
+    var band: VolumeBand
+    var text: String
+}
+
 enum PlanService {
     /// How far back the stall check looks when averaging weekly volume (DESIGN.md §2.5).
     static let volumeWindowDays = 14
@@ -87,6 +95,35 @@ enum PlanService {
         return dayExercises.map { exercise in
             PlannedExercise(exercise: exercise,
                             prescription: prescription(for: exercise, readiness: readiness, weeklyVolume: volume, metric: metric))
+        }
+    }
+
+    /// What the week's volume says about the muscles today's plan trains (DESIGN.md §2.5): under
+    /// the minimum, suggest a set or two; over the high band while a lift for it is stalling,
+    /// suggest dropping two. Muscles in range say nothing.
+    static func volumeNotes(plan: [PlannedExercise], volume: [Muscle: Double]) -> [VolumeNote] {
+        var muscles: [Muscle] = []
+        for item in plan {
+            for mw in item.exercise.muscles where mw.weight >= 1 && !muscles.contains(mw.muscle) { muscles.append(mw.muscle) }
+        }
+        return muscles.compactMap { muscle in
+            let sets = volume[muscle] ?? 0
+            switch VolumeTracker.band(sets) {
+            case .low:
+                let lift = plan.first { $0.exercise.primaryMuscle == muscle }?.exercise.name ?? "a \(muscle.displayName.lowercased()) lift"
+                return VolumeNote(muscle: muscle, sets: sets, band: .low,
+                                  text: "\(muscle.displayName): \(Units.number(sets)) sets/week, under the 10-set minimum. Add a set or two to \(lift).")
+            case .high:
+                let stalling = plan.filter { $0.exercise.primaryMuscle == muscle && $0.prescription.stallStreak > 0 }
+                guard let lift = stalling.first else {
+                    return VolumeNote(muscle: muscle, sets: sets, band: .high,
+                                      text: "\(muscle.displayName): \(Units.number(sets)) sets/week, above 20. Fine while it keeps progressing.")
+                }
+                return VolumeNote(muscle: muscle, sets: sets, band: .high,
+                                  text: "\(muscle.displayName): \(Units.number(sets)) sets/week, above 20, and \(lift.exercise.name) is stalling. Drop two sets.")
+            case .ok:
+                return nil
+            }
         }
     }
 

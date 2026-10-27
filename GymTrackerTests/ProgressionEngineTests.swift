@@ -123,6 +123,23 @@ final class ProgressionEngineTests: XCTestCase {
         XCTAssertEqual(p.rpeCap, 9)
     }
 
+    func testPrescriptionNamesThePreviousWeightOnlyWhenItChanges() {
+        let up = ProgressionEngine.prescription(history: [session(80, reps: [8, 8, 8])], config: config)
+        XCTAssertEqual(up.weight, 82.5)
+        XCTAssertEqual(up.previousWeight, 80)
+        let held = ProgressionEngine.prescription(history: [session(80, reps: [8, 7, 7])], config: config)
+        XCTAssertNil(held.previousWeight)
+    }
+
+    func testStallingAtFailureEverySetIsFlagged() {
+        let grinding = [session(80, reps: [7, 7, 7], rpe: 10, daysAgo: 6), session(80, reps: [7, 7, 7], rpe: 10, daysAgo: 3), session(80, reps: [7, 7, 7], rpe: 10)]
+        let p = ProgressionEngine.prescription(history: grinding, config: config, weeklySetsForPrimaryMuscle: 12)
+        XCTAssertEqual(p.stallAction, .deload)
+        XCTAssertTrue(p.reason.contains("RPE 10"), p.reason)
+        let steady = [session(80, reps: [7, 7, 7], rpe: 9, daysAgo: 6), session(80, reps: [7, 7, 7], rpe: 10, daysAgo: 3), session(80, reps: [7, 7, 7], rpe: 10)]
+        XCTAssertFalse(ProgressionEngine.prescription(history: steady, config: config, weeklySetsForPrimaryMuscle: 12).reason.contains("RPE 10"))
+    }
+
     func testDeloadBoundaryResetsStreak() {
         // Three stalls, then a deload session, then one more held session: streak should be 2, not 5.
         let history = [

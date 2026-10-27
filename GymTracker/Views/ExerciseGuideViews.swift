@@ -73,6 +73,10 @@ struct ExerciseDetailView: View {
                 }
             }
 
+            if let notes = exercise.notes, !notes.isEmpty {
+                Section("Your notes") { Text(notes) }
+            }
+
             Section {
                 MuscleMap(muscles: exercise.muscles)
                     .frame(height: 320)

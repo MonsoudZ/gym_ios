@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated enum VolumeBand: Sendable {
+nonisolated enum VolumeBand: Hashable, Sendable {
     case low, ok, high
 
     var label: String {

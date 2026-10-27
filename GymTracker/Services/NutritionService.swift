@@ -18,6 +18,9 @@ struct NutritionSnapshot {
 }
 
 enum NutritionService {
+    /// How far back intake is fetched for the snapshot: the 14-day window plus room for gaps.
+    nonisolated static let intakeLookbackDays = 60
+
     static func snapshot(settings: UserSettings, weights: [BodyweightEntry], intake: [IntakeEntry], asOf: Date = .now) -> NutritionSnapshot {
         let cal = Calendar.current
         let raw = weights.map { DatedValue(date: $0.date, value: $0.kg) }.sorted { $0.date < $1.date }

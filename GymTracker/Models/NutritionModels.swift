@@ -87,6 +87,10 @@ final class UserSettings {
     /// Saves each finished workout to Health as strength training.
     var saveWorkoutsToHealthEnabled: Bool = false
 
+    /// A program day picked on the Today tab in place of the next in rotation, until a workout
+    /// starts. Stored so the widget shows the same day.
+    var chosenDayID: UUID?
+
     var usesAnyHealthReading: Bool { heartReadinessEnabled || sleepFromHealthEnabled || bodyweightFromHealthEnabled }
 
     init() {

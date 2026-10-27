@@ -92,6 +92,7 @@ enum WorkoutImportService {
             let session = WorkoutSession(date: workout.date, templateDayName: workout.name)
             session.isCompleted = true
             session.importKey = workout.key
+            session.notes = workout.notes
             context.insert(session)
             for set in sets {
                 set.session = session

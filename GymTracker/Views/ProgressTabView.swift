@@ -154,6 +154,8 @@ struct VolumeChart: View {
             }
             .chartXScale(domain: 0...max(24, (rows.map(\.sets).max() ?? 0) + 4))
             .frame(height: CGFloat(rows.count) * 26 + 30)
+            .accessibilityLabel("Weekly hard sets per muscle")
+            .accessibilityValue(rows.map { "\($0.muscle.displayName) \(Units.number($0.sets)), \(VolumeTracker.band($0.sets).label.lowercased())" }.joined(separator: ". "))
         }
     }
 

@@ -26,6 +26,8 @@ final class WorkoutSession {
     /// Set on sessions read from a Strong or Hevy export (`ImportedWorkout.key`), so importing
     /// the same file again adds nothing. Nil for sessions logged here.
     var importKey: String?
+    /// How the session went, in the lifter's words. Imports carry Strong's and Hevy's workout notes.
+    var notes: String?
     @Relationship(deleteRule: .cascade, inverse: \SetEntry.session) var sets: [SetEntry] = []
 
     init(date: Date = .now, templateDayName: String, sleepHours: Double? = nil, soreness: [Muscle: Int] = [:]) {

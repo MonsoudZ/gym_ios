@@ -6,21 +6,34 @@ struct TodayView: View {
     @Query(sort: \WorkoutSession.date, order: .reverse) private var sessions: [WorkoutSession]
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
     @Query private var settingsList: [UserSettings]
+    /// Only what the nutrition engine can use: its window is 14 logged days, so two months
+    /// covers it with room for gaps. Unbounded, this grew by every meal ever logged.
     @Query private var intake: [IntakeEntry]
     @Query(sort: \BodyweightEntry.date) private var weights: [BodyweightEntry]
     @Query(sort: \Program.createdAt) private var programs: [Program]
     @Query private var readinessEntries: [ReadinessEntry]
 
+    init() {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -NutritionService.intakeLookbackDays, to: .now) ?? .distantPast
+        _intake = Query(filter: #Predicate<IntakeEntry> { $0.date >= cutoff })
+        let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: .now) ?? .distantPast
+        _readinessEntries = Query(filter: #Predicate<ReadinessEntry> { $0.date >= weekAgo })
+    }
+
     @State private var activeSession: WorkoutSession?
     @State private var showingGuide: Exercise?
     @State private var guideTab: ExerciseDetailView.Tab = .guide
-    /// A day picked in place of the next in rotation, until a workout is started.
-    @State private var chosenDayID: UUID?
     @State private var confirmDiscard = false
     /// Keeps the readiness inputs open while the lifter is typing; reset whenever the tab is shown.
     @State private var editingReadiness = false
 
     private var settings: UserSettings? { settingsList.first }
+    /// A day picked in place of the next in rotation, until a workout is started. Kept on the
+    /// settings row so the widget shows the same day.
+    private var chosenDayID: UUID? {
+        get { settings?.chosenDayID }
+        nonmutating set { settings?.chosenDayID = newValue; context.saveOrLog() }
+    }
     private var completed: [WorkoutSession] { sessions.filter(\.isCompleted) }
     private var inProgress: WorkoutSession? { sessions.first { !$0.isCompleted } }
 
@@ -65,6 +78,7 @@ struct TodayView: View {
     private struct Today {
         var day: ProgramDay
         var plan: [PlannedExercise]
+        var volumeNotes: [VolumeNote] = []
         var headline: PlannedExercise? {
             plan.first { $0.prescription.stallAction != nil } ?? plan.first { $0.prescription.isNotable } ?? plan.first
         }
@@ -75,7 +89,8 @@ struct TodayView: View {
               let day = PlanService.day(in: activeProgram, chosenID: chosenDayID, completedSessions: completed) else { return nil }
         let plan = PlanService.plan(day: day, exercises: exercises, completedSessions: completed,
                                     readiness: readiness, metric: settings.usesMetric)
-        return Today(day: day, plan: plan)
+        let volume = PlanService.volumeForStallCheck(dayExercises: day.exercises(from: exercises), completedSessions: completed)
+        return Today(day: day, plan: plan, volumeNotes: PlanService.volumeNotes(plan: plan, volume: volume))
     }
 
     var body: some View {
@@ -102,6 +117,7 @@ struct TodayView: View {
                     headlineSection(today)
                     readinessSection(today)
                     sessionSection(today)
+                    volumeSection(today)
                 } else {
                     Section {
                         EmptyState("No days yet", systemImage: "calendar.badge.plus",
@@ -346,6 +362,26 @@ struct TodayView: View {
         }
     }
 
+    /// Only muscles outside the 10–20 band are mentioned; in range, the section is not shown.
+    @ViewBuilder private func volumeSection(_ today: Today) -> some View {
+        if !today.volumeNotes.isEmpty {
+            Section {
+                ForEach(today.volumeNotes, id: \.muscle) { note in
+                    Label {
+                        Text(note.text).font(.subheadline)
+                    } icon: {
+                        Image(systemName: note.band == .low ? "arrow.up.circle" : "exclamationmark.triangle")
+                            .foregroundStyle(note.band == .low ? Color.accentColor : .orange)
+                    }
+                }
+            } header: {
+                Text("This week's volume")
+            } footer: {
+                Text("Hard sets per muscle, averaged over the last two weeks. The full chart is on the Progress tab.")
+            }
+        }
+    }
+
     private var nutritionSection: some View {
         Section("Nutrition") {
             if let settings {
@@ -364,7 +400,11 @@ struct TodayView: View {
         let p = item.prescription
         let sets = "\(p.setCount) × \(p.repRangeLow)–\(p.repRangeHigh)"
         if p.needsStartingWeight { return "\(item.exercise.name): choose a starting weight" }
-        return "\(item.exercise.name): \(Units.weight(p.weight, metric: metric)), \(sets)"
+        var line = "\(item.exercise.name): \(Units.weight(p.weight, metric: metric)), \(sets)"
+        if let previous = p.previousWeight {
+            line += previous < p.weight ? ", up from \(Units.weight(previous, metric: metric))" : ", down from \(Units.weight(previous, metric: metric))"
+        }
+        return line
     }
 
     private func prescriptionLine(_ p: Prescription, metric: Bool) -> String {

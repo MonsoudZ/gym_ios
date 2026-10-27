@@ -42,7 +42,7 @@ final class WorkoutImportTests: XCTestCase {
     2025-06-30 18:05:00,Upper A,1h 2m,Bench Press (Barbell),Rest Timer,0,0,0,120,,,
     2025-06-30 18:05:00,Upper A,1h 2m,Lat Pulldown (Cable),1,140,10,0,0,,,
     2025-06-30 18:05:00,Upper A,1h 2m,Plank,1,0,0,0,60,,,
-    2025-07-02 17:40:00,Lower A,55m,Squat (Barbell),1,225,5,0,0,,,8.5
+    2025-07-02 17:40:00,Lower A,55m,Squat (Barbell),1,225,5,0,0,,Knee felt fine,8.5
     2025-07-02 17:40:00,Lower A,55m,Pull Up,1,0,8,0,0,,,
     """
 
@@ -204,6 +204,12 @@ final class WorkoutImportTests: XCTestCase {
     override func tearDown() {
         container = nil
         super.tearDown()
+    }
+
+    func testWorkoutNotesComeAlong() throws {
+        let file = try WorkoutImportParser.parse(strongCurrent, assumedUnit: .lb, timeZone: denver)
+        XCTAssertNil(file.workouts[0].notes)
+        XCTAssertEqual(file.workouts[1].notes, "Knee felt fine")
     }
 
     func testKeysDoNotDependOnTheTimeZoneTheFileIsParsedIn() throws {

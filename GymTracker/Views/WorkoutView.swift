@@ -77,8 +77,16 @@ struct WorkoutView: View {
                         exerciseMenu(exercise, hasLoggedSets: exerciseSets.contains { $0.reps > 0 })
                     }
                 } footer: {
-                    Text("Target \(exercise.repRangeLow)–\(exercise.repRangeHigh) reps, RPE \(Units.number(exercise.rpeCap)) or below. Rest \(RestRule.label(exercise.restSeconds)). Swipe a set right to mark it a warm-up; warm-ups never count as volume.")
+                    Text("\(exercise.notes.map { "\($0)\n" } ?? "")Target \(exercise.repRangeLow)–\(exercise.repRangeHigh) reps, RPE \(Units.number(exercise.rpeCap)) or below. Rest \(RestRule.label(exercise.restSeconds)). Swipe a set right to mark it a warm-up; warm-ups never count as volume.")
                 }
+            }
+            Section("Notes") {
+                TextField("How did it go?", text: Binding(
+                    get: { session.notes ?? "" },
+                    set: { session.notes = $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }),
+                    axis: .vertical)
+                    .lineLimit(1...4)
+                    .accessibilityLabel("Session notes")
             }
             Section {
                 Button("Add exercise", systemImage: "plus.circle") { showAddExercise = true }
@@ -110,10 +118,12 @@ struct WorkoutView: View {
         }
         .safeAreaInset(edge: .bottom) {
             if let rest = timer.rest {
+                // Keyed on the rest's start so each rest gets a fresh bar, and its own "done" haptic.
                 RestTimerBar(rest: rest.endsAt, total: rest.seconds, exerciseName: rest.exerciseName,
                              onAddTime: { timer.addTime() },
                              onSkip: { timer.skip() },
                              onFinished: { restsFinished += 1 })
+                .id(rest.startedAt)
             }
         }
         .sensoryFeedback(.success, trigger: restsFinished)

@@ -18,6 +18,9 @@ struct GymTrackerApp: App {
         }
         Seeder.prepare(context: container.mainContext)
         WidgetBridge.observe(container)
+        // A Live Activity left on the lock screen by a workout the app was killed during ends
+        // now, not only once a workout screen is next opened.
+        Task { await RestActivityController.end() }
     }
 
     var body: some Scene {

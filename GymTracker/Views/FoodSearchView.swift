@@ -136,11 +136,12 @@ struct FoodSearchView: View {
 
     private func runSearch() async {
         let q = query.trimmingCharacters(in: .whitespaces)
-        guard q.count >= 2 else { results = []; return }
+        guard q.count >= 2 else { results = []; isSearching = false; return }
         try? await Task.sleep(for: .milliseconds(400))   // debounce typing
         guard !Task.isCancelled else { return }
         isSearching = true
         searchError = nil
+        defer { isSearching = false }   // every exit, cancellation included, clears the spinner
         do {
             let found = try await OpenFoodFactsClient.shared.search(q)
             guard !Task.isCancelled else { return }
@@ -150,7 +151,6 @@ struct FoodSearchView: View {
         } catch {
             searchError = "Search failed. Check your connection."
         }
-        isSearching = false
     }
 
     private func lookup(barcode code: String) async {

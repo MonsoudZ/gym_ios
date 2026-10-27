@@ -69,6 +69,14 @@ struct SessionEditorView: View {
                     Text("Swipe a set to delete it, or right to mark it a warm-up.")
                 }
             }
+            Section("Notes") {
+                TextField("How did it go?", text: Binding(
+                    get: { session.notes ?? "" },
+                    set: { session.notes = $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }),
+                    axis: .vertical)
+                    .lineLimit(1...4)
+                    .accessibilityLabel("Session notes")
+            }
             Section {
                 Button("Delete workout", systemImage: "trash", role: .destructive) { confirmDelete = true }
             }

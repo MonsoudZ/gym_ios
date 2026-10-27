@@ -63,7 +63,7 @@ enum WidgetBridge {
         }
 
         let completed = sessions.filter(\.isCompleted)
-        guard let day = PlanService.nextDay(in: program, completedSessions: completed) else { return nil }
+        guard let day = PlanService.day(in: program, chosenID: settings.chosenDayID, completedSessions: completed) else { return nil }
         let readinessEntries = (try? context.fetch(FetchDescriptor<ReadinessEntry>())) ?? []
         let todayEntry = ReadinessEntry.entry(for: now, in: readinessEntries)
         let readiness = todayEntry.map(\.readiness).flatMap { $0.hasAnyInput ? $0 : nil }
@@ -88,9 +88,10 @@ enum WidgetBridge {
     }
 
     static func nutritionSnapshot(context: ModelContext, now: Date) -> NutritionWidgetSnapshot? {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -NutritionService.intakeLookbackDays, to: now) ?? .distantPast
         guard let settings = try? context.fetch(FetchDescriptor<UserSettings>()).first,
               let weights = try? context.fetch(FetchDescriptor<BodyweightEntry>(sortBy: [SortDescriptor(\.date)])),
-              let intake = try? context.fetch(FetchDescriptor<IntakeEntry>()) else { return nil }
+              let intake = try? context.fetch(FetchDescriptor<IntakeEntry>(predicate: #Predicate { $0.date >= cutoff })) else { return nil }
         let snap = NutritionService.snapshot(settings: settings, weights: weights, intake: intake, asOf: now)
         return NutritionWidgetSnapshot(dayStart: Calendar.current.startOfDay(for: now),
                                        eatenKcal: snap.eatenToday.kcal, targetKcal: snap.targetKcal,

@@ -142,6 +142,11 @@ The dose–response direction comes from Schoenfeld 2017 and Pelland 2026; the 1
 set bands themselves are practical heuristics, not thresholds reported in those papers.
 The upper band is a prompt, not a hard stop; some people respond well above 20.
 
+The Today tab carries one line per muscle today's plan trains that sits outside the band
+(`PlanService.volumeNotes`): under 10, which lift to add a set or two to; over 20 with a lift
+for that muscle stalling, drop two sets; over 20 and progressing, an observation only.
+Muscles in range say nothing. The full chart is on the Progress tab.
+
 ### 2.6 Program templates
 
 Shipped defaults, all hitting each muscle ≥ 2×/week:
@@ -246,7 +251,8 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
   picking another plans that day instead, and once it is completed the rotation carries on
   from it. An unfinished workout can be discarded from here to start a different day.
 - One line: today's session name and the single most important change
-  ("Bench: 82.5 kg × 3 sets of 6–8, up from 80").
+  ("Bench: 82.5 kg × 3 sets of 6–8, up from 80"). The comparison is shown whenever today's
+  load differs from last session's (`Prescription.previousWeight`).
 - One line: calorie and protein target with progress bar.
 - Readiness check-in if not done (two taps).
 
@@ -292,10 +298,17 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
   tapping one opens the session editor, so a mistyped set can be corrected and the record goes
   with it. The trend chart lives on the Progress tab only.
 - Per muscle: weekly hard sets as a bar chart against the 10 / 20 bands.
-- Bodyweight: trend line over raw dots, with the goal slope drawn as a reference.
+- Bodyweight: trend line over raw dots, with the goal slope drawn as a dashed reference
+  through the latest trend point. The food list and the weigh-in field refer to a chosen day
+  (today by default, arrows to go back), so a forgotten dinner or weigh-in lands on its day;
+  every weigh-in is listed for correction or deletion.
 - Expenditure: current estimate, confidence, and how it has moved. A "Past checks" row
   unfolds the last six applied adjustments with the trend-vs-goal that drove each one and
   the running total after it.
+
+- Notes: an exercise carries the lifter's own note (setup, cues), shown under it during a
+  workout and on its guide; a session carries a note, editable during and after. Strong's
+  and Hevy's workout notes import onto the session.
 
 - Correcting history: a lift's session rows, and the Last session card, open the session
   for editing: weight, reps, RPE, warm-up flag, add or delete sets, the date, or delete the

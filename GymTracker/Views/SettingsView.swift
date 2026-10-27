@@ -31,6 +31,11 @@ private struct SettingsForm: View {
     var programs: [Program]
     @Binding var confirmReset: Bool
     @State private var confirmDemo = false
+    @Query(sort: \BodyweightEntry.date) private var weights: [BodyweightEntry]
+    /// The trend weight, as the Nutrition tab uses it, so the protein grams here match.
+    private var currentWeightKg: Double {
+        NutritionEngine.trend(weights.map { DatedValue(date: $0.date, value: $0.kg) }).last?.value ?? settings.assumedWeightKg
+    }
     @Environment(\.modelContext) private var context
     @Environment(\.openURL) private var openURL
     /// False after the lifter has refused notifications in iOS Settings.
@@ -110,6 +115,8 @@ private struct SettingsForm: View {
                     VStack(alignment: .leading) {
                         Text("Rate: \(Units.percent(settings.goalRatePercentPerWeek)) of bodyweight per week")
                         Slider(value: $settings.goalRatePercentPerWeek, in: range, step: 0.05)
+                            .accessibilityLabel("Rate of \(settings.goal.label.lowercased())")
+                            .accessibilityValue("\(Units.percent(settings.goalRatePercentPerWeek)) of bodyweight per week")
                         Text(settings.goal == .cut
                              ? "Slower loss keeps more muscle (Garthe 2011). 0.5% is the default."
                              : "Faster than 0.5%/week is mostly fat in trained lifters.")
@@ -122,7 +129,7 @@ private struct SettingsForm: View {
                     HStack {
                         Text("Protein")
                         Spacer()
-                        Text("\(Units.number(settings.proteinPerKg)) g/kg · \(Units.number(settings.proteinPerKg * settings.assumedWeightKg, maxFraction: 0)) g")
+                        Text("\(Units.number(settings.proteinPerKg)) g/kg · \(Units.number(settings.proteinPerKg * currentWeightKg, maxFraction: 0)) g")
                             .monospacedDigit().foregroundStyle(.secondary)
                     }
                 }
@@ -183,12 +190,15 @@ private struct SettingsForm: View {
             }
             .onChange(of: settings.remindersEnabled) { _, on in
                 Task {
-                    if on, !(await LogReminders.requestAuthorization()) {
-                        notificationsAllowed = false
-                        settings.remindersEnabled = false
-                    } else {
+                    // Turning the toggle back off after a refusal re-enters here with `on == false`;
+                    // that must not clear the hint that explains the refusal.
+                    guard on else { LogReminders.refresh(context: context); return }
+                    if await LogReminders.requestAuthorization() {
                         notificationsAllowed = true
                         LogReminders.refresh(context: context)
+                    } else {
+                        notificationsAllowed = false
+                        settings.remindersEnabled = false
                     }
                 }
             }

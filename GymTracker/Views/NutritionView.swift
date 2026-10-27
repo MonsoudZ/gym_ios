@@ -185,6 +185,15 @@ struct NutritionView: View {
                         LineMark(x: .value("Date", p.date), y: .value("Trend", display(p.value, settings)))
                             .foregroundStyle(Color.accentColor).lineStyle(StrokeStyle(lineWidth: 2))
                     }
+                    // The goal rate as a dashed reference through the latest trend point.
+                    if settings.goalRatePercentPerWeek != 0, let first = snap.trend.first, let last = snap.trend.last, first.date < last.date {
+                        let weeks = last.date.timeIntervalSince(first.date) / (7 * 86_400)
+                        let startValue = last.value / (1 + settings.goalRatePercentPerWeek / 100 * weeks)
+                        LineMark(x: .value("Date", first.date), y: .value("Goal", display(startValue, settings)), series: .value("Series", "Goal"))
+                            .foregroundStyle(.secondary).lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        LineMark(x: .value("Date", last.date), y: .value("Goal", display(last.value, settings)), series: .value("Series", "Goal"))
+                            .foregroundStyle(.secondary).lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    }
                 }
                 .chartYScale(domain: .automatic(includesZero: false))
                 .frame(height: 200)

@@ -32,6 +32,8 @@ nonisolated struct ImportedWorkout: Hashable, Sendable {
     /// so the same file gives the same keys whatever time zone it is imported in.
     var dateText: String
     var sets: [ImportedSet]
+    /// Strong's "Workout Notes" or Hevy's "description", when the file has one.
+    var notes: String? = nil
 
     /// Stable across exports of the same history, so importing a file twice adds nothing.
     var key: String { "\(source.rawValue)|\(dateText)|\(name)" }
@@ -134,7 +136,8 @@ nonisolated enum WorkoutImportParser {
             guard weight >= 0 else { builder.skipped += 1; continue }
             let set = ImportedSet(exerciseName: exercise, weightKg: unit.kilograms(weight), reps: reps,
                                   rpe: rpe(table.value(row, "RPE")), isWarmup: order.hasPrefix("w"))
-            builder.add(set, workoutName: table.value(row, "Workout Name") ?? "Strong workout", date: date, dateText: dateText)
+            builder.add(set, workoutName: table.value(row, "Workout Name") ?? "Strong workout", date: date, dateText: dateText,
+                        notes: table.value(row, "Workout Notes"))
         }
         return builder.finish(unitFromFile: unitColumn)
     }
@@ -171,7 +174,8 @@ nonisolated enum WorkoutImportParser {
             let type = (table.value(row, "set_type") ?? "").lowercased()
             let set = ImportedSet(exerciseName: exercise, weightKg: unit.kilograms(weight), reps: reps,
                                   rpe: rpe(table.value(row, "rpe")), isWarmup: type == "warmup" || type == "warm up" || type == "2")
-            builder.add(set, workoutName: table.value(row, "title") ?? "Hevy workout", date: date, dateText: dateText)
+            builder.add(set, workoutName: table.value(row, "title") ?? "Hevy workout", date: date, dateText: dateText,
+                        notes: table.value(row, "description"))
         }
         return builder.finish(unitFromFile: unitFromFile)
     }
@@ -194,13 +198,15 @@ nonisolated enum WorkoutImportParser {
 
         init(source: WorkoutImportSource) { self.source = source }
 
-        mutating func add(_ set: ImportedSet, workoutName: String, date: Date, dateText: String) {
+        mutating func add(_ set: ImportedSet, workoutName: String, date: Date, dateText: String, notes: String? = nil) {
             let key = ImportedWorkout(source: source, name: workoutName, date: date, dateText: dateText, sets: []).key
+            let notes = notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? notes : nil
             if let index = indexByKey[key] {
                 workouts[index].sets.append(set)
+                if workouts[index].notes == nil { workouts[index].notes = notes }
             } else {
                 indexByKey[key] = workouts.count
-                workouts.append(ImportedWorkout(source: source, name: workoutName, date: date, dateText: dateText, sets: [set]))
+                workouts.append(ImportedWorkout(source: source, name: workoutName, date: date, dateText: dateText, sets: [set], notes: notes))
             }
         }
 

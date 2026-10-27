@@ -359,6 +359,19 @@ struct ExerciseEditorView: View {
             }
 
             Section {
+                TextField("Seat height, grip, what to watch for…", text: Binding(
+                    get: { exercise.notes ?? "" },
+                    set: { exercise.notes = $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }),
+                    axis: .vertical)
+                    .lineLimit(1...5)
+                    .accessibilityLabel("Notes")
+            } header: {
+                Text("Notes")
+            } footer: {
+                Text("Shown under the exercise during a workout and on its guide.")
+            }
+
+            Section {
                 Stepper("Sets: \(exercise.setCount)", value: $exercise.setCount, in: 1...8)
                 Stepper("Reps from \(exercise.repRangeLow)", value: $exercise.repRangeLow, in: 1...30)
                     .onChange(of: exercise.repRangeLow) { _, low in if exercise.repRangeHigh < low { exercise.repRangeHigh = low } }
