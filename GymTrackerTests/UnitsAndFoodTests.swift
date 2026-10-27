@@ -86,4 +86,14 @@ final class UnitsAndFoodTests: XCTestCase {
         let response = try JSONDecoder().decode(OpenFoodFactsClient.ProductResponse.self, from: Data(json.utf8))
         XCTAssertEqual(try XCTUnwrap(response.product?.draft).kcalPer100g, 250, accuracy: 0.1)
     }
+
+    func testBackdatedFoodIsStampedAtNoonAndTodayIsStampedNow() {
+        let calendar = Calendar.current
+        let now = calendar.date(bySettingHour: 21, minute: 30, second: 0, of: .now)!
+        XCTAssertEqual(IntakeEntry.timestamp(for: calendar.startOfDay(for: now), now: now, calendar: calendar), now)
+        let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: now))!
+        let stamped = IntakeEntry.timestamp(for: twoDaysAgo, now: now, calendar: calendar)
+        XCTAssertTrue(calendar.isDate(stamped, inSameDayAs: twoDaysAgo))
+        XCTAssertEqual(calendar.component(.hour, from: stamped), 12)
+    }
 }

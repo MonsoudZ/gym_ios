@@ -27,6 +27,13 @@ final class IntakeEntry {
     var fibre: Double
     var grams: Double?
 
+    /// The timestamp for a food logged against `day`: now when that is today, else noon on
+    /// that day, so a backdated entry sorts into its day whatever the time zone does.
+    static func timestamp(for day: Date, now: Date = .now, calendar: Calendar = .current) -> Date {
+        if calendar.isDate(day, inSameDayAs: now) { return now }
+        return calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day) ?? day
+    }
+
     init(date: Date = .now, name: String, kcal: Double, protein: Double = 0, carbs: Double = 0, fat: Double = 0, fibre: Double = 0, grams: Double? = nil) {
         self.date = date
         self.name = name

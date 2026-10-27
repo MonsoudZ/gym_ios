@@ -13,8 +13,20 @@ struct NutritionView: View {
     @State private var showSaveMeal = false
     @State private var weightText = ""
     @FocusState private var weightFieldFocused: Bool
+    /// The day the food list and the weigh-in field refer to. Today by default; the arrows
+    /// step back so a forgotten dinner or weigh-in can be put on the day it belongs to.
+    @State private var shownDay = Calendar.current.startOfDay(for: .now)
 
     private var settings: UserSettings? { settingsList.first }
+    private var calendar: Calendar { Calendar.current }
+    private var today: Date { calendar.startOfDay(for: .now) }
+    private var showingToday: Bool { shownDay == today }
+    private var shownDayLabel: String {
+        if showingToday { return "Today" }
+        if calendar.isDateInYesterday(shownDay) { return "Yesterday" }
+        return shownDay.formatted(.dateTime.weekday(.wide).day().month())
+    }
+    private var shownWeight: BodyweightEntry? { weights.first { $0.date == shownDay } }
 
     var body: some View {
         NavigationStack {
@@ -24,18 +36,50 @@ struct NutritionView: View {
                     targetSection(snap, settings: settings)
                     expenditureSection(snap, settings: settings)
                     bodyweightSection(snap, settings: settings)
-                    todaySection
+                    daySection
                 }
             }
             .navigationTitle("Nutrition")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Add food", systemImage: "plus") { showAddFood = true }
+                        .accessibilityLabel("Add food for \(shownDayLabel)")
                 }
             }
-            .sheet(isPresented: $showAddFood) { FoodSearchView() }
+            .sheet(isPresented: $showAddFood) { FoodSearchView(logDate: shownDay) }
             .sheet(isPresented: $showSaveMeal) { SaveMealView() }
+            .navigationDestination(for: WeighInList.Destination.self) { _ in
+                WeighInList(shownDay: $shownDay, weightText: $weightText)
+            }
+            // After midnight the remembered day would be "yesterday"; the tab reopens on today.
+            .onAppear { if shownDay != today { shownDay = today; weightText = "" } }
         }
+    }
+
+    /// Yesterday / today / a date, with arrows. Shared by the food list and the weigh-in field.
+    private var dayPicker: some View {
+        HStack {
+            Button { step(-1) } label: { Image(systemName: "chevron.left") }
+                .accessibilityLabel("Previous day")
+            Spacer()
+            VStack(spacing: 2) {
+                Text(shownDayLabel).font(.headline)
+                if !showingToday {
+                    Button("Back to today") { shownDay = today }.font(.caption)
+                }
+            }
+            Spacer()
+            Button { step(1) } label: { Image(systemName: "chevron.right") }
+                .disabled(showingToday)
+                .accessibilityLabel("Next day")
+        }
+        .buttonStyle(.borderless)
+    }
+
+    private func step(_ days: Int) {
+        guard let day = calendar.date(byAdding: .day, value: days, to: shownDay), day <= today else { return }
+        shownDay = day
+        weightText = ""
     }
 
     private func targetSection(_ snap: NutritionSnapshot, settings: UserSettings) -> some View {
@@ -113,15 +157,23 @@ struct NutritionView: View {
     }
 
     private func bodyweightSection(_ snap: NutritionSnapshot, settings: UserSettings) -> some View {
-        Section("Bodyweight") {
+        Section {
             HStack {
-                TextField("This morning's weight", text: $weightText)
+                TextField(showingToday ? "This morning's weight" : "Weight on \(shownDayLabel.lowercased())", text: $weightText)
                     .keyboardType(.decimalPad)
                     .font(.body.monospacedDigit())
                     .focused($weightFieldFocused)
+                    .accessibilityLabel("Weight for \(shownDayLabel)")
                 Text(settings.usesMetric ? "kg" : "lb").foregroundStyle(.secondary)
-                Button("Log today") { logWeight(metric: settings.usesMetric) }
+                Button(showingToday ? "Log today" : "Log") { logWeight(metric: settings.usesMetric) }
                     .disabled(Double(weightText.replacingOccurrences(of: ",", with: ".")) == nil)
+            }
+            if let shownWeight {
+                LabeledContent(showingToday ? "Logged today" : "Logged \(shownDayLabel.lowercased())") {
+                    Text("\(Units.weight(shownWeight.kg, metric: settings.usesMetric))\(shownWeight.fromHealth ? " · Health" : "")")
+                        .monospacedDigit()
+                }
+                .font(.subheadline)
             }
             if snap.raw.count >= 2 {
                 Chart {
@@ -136,26 +188,44 @@ struct NutritionView: View {
                 }
                 .chartYScale(domain: .automatic(includesZero: false))
                 .frame(height: 200)
+                .accessibilityLabel("Bodyweight chart: trend \(Units.weight(snap.latestWeightKg, metric: settings.usesMetric)) over \(snap.raw.count) weigh-ins")
                 LabeledContent("Trend weight") { Text(Units.weight(snap.latestWeightKg, metric: settings.usesMetric)).monospacedDigit() }
+                NavigationLink(value: WeighInList.Destination.list) {
+                    Label("All weigh-ins (\(weights.count))", systemImage: "list.bullet")
+                }
             } else {
                 EmptyState("No trend yet", systemImage: "scalemass",
                            description: "Weigh in each morning. After two days the line shows your trend and the dots show the scale.") {
                     Button("Log weight") { weightFieldFocused = true }
                 }
             }
+        } header: {
+            Text("Bodyweight")
+        } footer: {
+            if !showingToday {
+                Text("Use the arrows under Food to pick the day a weigh-in belongs to.")
+            }
         }
     }
 
-    private var todaySection: some View {
-        Section("Logged today") {
-            let today = intake.filter { Calendar.current.isDateInToday($0.date) }
-            if today.isEmpty {
-                EmptyState("Nothing logged today", systemImage: "fork.knife",
-                           description: "Log what you eat and the target above fills in.") {
+    private var daySection: some View {
+        Section {
+            dayPicker
+            let entries = intake.filter { calendar.isDate($0.date, inSameDayAs: shownDay) }
+            if entries.isEmpty {
+                EmptyState(showingToday ? "Nothing logged today" : "Nothing logged", systemImage: "fork.knife",
+                           description: showingToday ? "Log what you eat and the target above fills in." : "Add what you ate on \(shownDayLabel.lowercased()) and the expenditure estimate uses it.") {
                     Button("Add food") { showAddFood = true }
                 }
+            } else if !showingToday {
+                let kcal = entries.reduce(0) { $0 + $1.kcal }
+                let protein = entries.reduce(0) { $0 + $1.protein }
+                LabeledContent("Day total") {
+                    Text("\(Units.number(kcal, maxFraction: 0)) kcal · P \(Units.number(protein, maxFraction: 0))").monospacedDigit()
+                }
+                .font(.subheadline)
             }
-            ForEach(today, id: \.persistentModelID) { entry in
+            ForEach(entries, id: \.persistentModelID) { entry in
                 HStack {
                     VStack(alignment: .leading) {
                         Text(entry.name)
@@ -167,13 +237,15 @@ struct NutritionView: View {
                 }
             }
             .onDelete { offsets in
-                for index in offsets { context.delete(today[index]) }
+                for index in offsets { context.delete(entries[index]) }
                 context.saveOrLog()
                 LogReminders.refresh(context: context)
             }
             if !intake.isEmpty {
                 Button("Save foods as a meal", systemImage: "square.stack") { showSaveMeal = true }
             }
+        } header: {
+            Text("Food")
         }
     }
 
@@ -184,12 +256,11 @@ struct NutritionView: View {
     private func logWeight(metric: Bool) {
         guard let value = Double(weightText.replacingOccurrences(of: ",", with: ".")) else { return }
         let kg = metric ? value : value / Units.lbPerKg
-        let today = Calendar.current.startOfDay(for: .now)
-        if let existing = weights.first(where: { $0.date == today }) {
+        if let existing = shownWeight {
             existing.kg = kg
             existing.fromHealth = false   // typed over: Health no longer updates this day
         } else {
-            context.insert(BodyweightEntry(date: today, kg: kg))
+            context.insert(BodyweightEntry(date: shownDay, kg: kg))
         }
         context.saveOrLog()
         LogReminders.refresh(context: context)
@@ -197,7 +268,56 @@ struct NutritionView: View {
     }
 }
 
+/// Every weigh-in, newest first. Swipe to delete; tap one to bring its day up on the Nutrition
+/// tab with the value in the field, ready to retype.
+struct WeighInList: View {
+    enum Destination: Hashable { case list }
+
+    @Binding var shownDay: Date
+    @Binding var weightText: String
+
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query(sort: \BodyweightEntry.date, order: .reverse) private var weights: [BodyweightEntry]
+    @Query private var settingsList: [UserSettings]
+    private var metric: Bool { settingsList.first?.usesMetric ?? false }
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(weights, id: \.persistentModelID) { entry in
+                    Button {
+                        shownDay = entry.date
+                        weightText = Units.number(Units.display(entry.kg, metric: metric))
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text(entry.date, format: .dateTime.weekday(.abbreviated).day().month().year())
+                            Spacer()
+                            if entry.fromHealth {
+                                Image(systemName: "heart").foregroundStyle(.secondary).accessibilityLabel("From Health")
+                            }
+                            Text(Units.weight(entry.kg, metric: metric)).monospacedDigit()
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                }
+                .onDelete { offsets in
+                    for index in offsets { context.delete(weights[index]) }
+                    context.saveOrLog()
+                    LogReminders.refresh(context: context)
+                }
+            } footer: {
+                Text("Tap a weigh-in to correct it, swipe to delete it. The trend and expenditure estimate update.")
+            }
+        }
+        .navigationTitle("Weigh-ins")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 struct AddIntakeView: View {
+    var logDate: Date = .now
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
@@ -242,7 +362,8 @@ struct AddIntakeView: View {
     private func save() {
         let p = protein ?? 0, c = carbs ?? 0, f = fat ?? 0
         let energy = kcal ?? (4 * p + 4 * c + 9 * f)
-        context.insert(IntakeEntry(name: name.isEmpty ? "Food" : name, kcal: energy, protein: p, carbs: c, fat: f, fibre: fibre ?? 0))
+        context.insert(IntakeEntry(date: IntakeEntry.timestamp(for: logDate), name: name.isEmpty ? "Food" : name,
+                                   kcal: energy, protein: p, carbs: c, fat: f, fibre: fibre ?? 0))
         context.saveOrLog()
         LogReminders.refresh(context: context)
         dismiss()

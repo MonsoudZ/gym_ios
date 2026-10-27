@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 
 struct FoodSearchView: View {
+    /// The day the food is logged to. Today unless the Nutrition tab is showing another day.
+    var logDate: Date = .now
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \FoodItem.lastUsed, order: .reverse) private var savedFoods: [FoodItem]
@@ -102,10 +104,10 @@ struct FoodSearchView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
             .sheet(item: $selected) { draft in
-                LogFoodView(draft: draft) { dismiss() }
+                LogFoodView(draft: draft, logDate: logDate) { dismiss() }
             }
             .sheet(item: $selectedMeal) { meal in
-                LogMealView(meal: meal) { dismiss() }
+                LogMealView(meal: meal, logDate: logDate) { dismiss() }
             }
             .sheet(isPresented: $showScanner) {
                 BarcodeScannerView { code in
@@ -113,7 +115,7 @@ struct FoodSearchView: View {
                     Task { await lookup(barcode: code) }
                 }
             }
-            .sheet(isPresented: $showManual) { AddIntakeView() }
+            .sheet(isPresented: $showManual) { AddIntakeView(logDate: logDate) }
         }
     }
 
@@ -201,6 +203,7 @@ struct FoodRow: View {
 /// Pick an amount and log it. Upserts the food into "Your foods".
 struct LogFoodView: View {
     var draft: FoodDraft
+    var logDate: Date = .now
     var onLogged: () -> Void
 
     @Environment(\.modelContext) private var context
@@ -253,8 +256,8 @@ struct LogFoodView: View {
 
     private func log() {
         let m = macros
-        context.insert(IntakeEntry(name: draft.displayName, kcal: m.kcal, protein: m.protein, carbs: m.carbs,
-                                   fat: m.fat, fibre: m.fibre, grams: grams))
+        context.insert(IntakeEntry(date: IntakeEntry.timestamp(for: logDate), name: draft.displayName, kcal: m.kcal,
+                                   protein: m.protein, carbs: m.carbs, fat: m.fat, fibre: m.fibre, grams: grams))
         let existing = savedFoods.first { item in
             if let code = draft.barcode, item.barcode == code { return true }
             return item.name == draft.name && item.brand == draft.brand

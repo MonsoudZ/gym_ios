@@ -18,6 +18,7 @@ struct MealRow: View {
 /// Logs every food in a saved meal at once, optionally at a different portion.
 struct LogMealView: View {
     var meal: SavedMeal
+    var logDate: Date = .now
     var onLogged: () -> Void
 
     @Environment(\.modelContext) private var context
@@ -68,7 +69,7 @@ struct LogMealView: View {
     }
 
     private func log() {
-        meal.log(scale: scale, in: context)
+        meal.log(scale: scale, at: IntakeEntry.timestamp(for: logDate), in: context)
         context.saveOrLog()
         LogReminders.refresh(context: context)
         dismiss()
