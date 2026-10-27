@@ -7,7 +7,6 @@ struct SettingsView: View {
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
     @Query(sort: \Program.createdAt) private var programs: [Program]
     @State private var confirmReset = false
-    @State private var confirmDemo = false
 
     var body: some View {
         NavigationStack {
@@ -31,6 +30,7 @@ private struct SettingsForm: View {
     var exercises: [Exercise]
     var programs: [Program]
     @Binding var confirmReset: Bool
+    @State private var confirmDemo = false
     @Environment(\.modelContext) private var context
     @Environment(\.openURL) private var openURL
     /// False after the lifter has refused notifications in iOS Settings.
