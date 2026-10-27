@@ -34,10 +34,11 @@ enum WorkoutImportService {
     /// to by default; names with no confident match are created as custom exercises.
     static func defaultMapping(for names: [String], exercises: [Exercise]) -> [String: Target] {
         let byName = Dictionary(exercises.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+        let byLibrary = Dictionary(exercises.compactMap { e in e.librarySpecName.map { ($0, e) } }, uniquingKeysWith: { first, _ in first })
         let byNormalized = Dictionary(exercises.map { (ExerciseMatcher.normalize($0.name), $0) }, uniquingKeysWith: { first, _ in first })
         var mapping: [String: Target] = [:]
         for name in names {
-            if let library = ExerciseMatcher.libraryName(for: name), let exercise = byName[library] {
+            if let library = ExerciseMatcher.libraryName(for: name), let exercise = byLibrary[library] ?? byName[library] {
                 mapping[name] = .existing(exercise.id)
             } else if let exercise = byName[name] ?? byNormalized[ExerciseMatcher.normalize(name)] {
                 mapping[name] = .existing(exercise.id)

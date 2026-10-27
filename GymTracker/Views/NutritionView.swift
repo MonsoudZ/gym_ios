@@ -187,6 +187,7 @@ struct NutritionView: View {
         let today = Calendar.current.startOfDay(for: .now)
         if let existing = weights.first(where: { $0.date == today }) {
             existing.kg = kg
+            existing.fromHealth = false   // typed over: Health no longer updates this day
         } else {
             context.insert(BodyweightEntry(date: today, kg: kg))
         }

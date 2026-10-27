@@ -332,8 +332,13 @@ struct ExerciseEditorView: View {
     private var unit: String { metric ? "kg" : "lb" }
     private static let rpeCaps: [Double] = [8, 8.5, 9, 9.5, 10]
 
+    /// The name the exercise had when the editor opened, restored if the lifter leaves it on a
+    /// name another exercise already has: names are unique in the store, so saving one would
+    /// fail and leave the context unable to save anything else.
+    @State private var originalName = ""
+
     private var nameTaken: Bool {
-        isNew && exercises.contains { $0.name.caseInsensitiveCompare(exercise.name) == .orderedSame }
+        exercises.contains { $0 !== exercise && $0.name.caseInsensitiveCompare(exercise.name) == .orderedSame }
     }
 
     private var incrementDisplay: Binding<Double> {
@@ -350,7 +355,7 @@ struct ExerciseEditorView: View {
         Form {
             Section {
                 TextField("Name", text: $exercise.name)
-                if nameTaken { Text("An exercise with this name already exists.").font(.caption).foregroundStyle(.red) }
+                if nameTaken { Text("An exercise with this name already exists\(isNew ? "." : "; the old name will be kept.")").font(.caption).foregroundStyle(.red) }
             }
 
             Section {
@@ -416,7 +421,12 @@ struct ExerciseEditorView: View {
                 }
             }
         }
-        .onDisappear { if !isNew { context.saveOrLog() } }
+        .onAppear { originalName = exercise.name }
+        .onDisappear {
+            guard !isNew else { return }
+            if nameTaken || exercise.name.trimmingCharacters(in: .whitespaces).isEmpty { exercise.name = originalName }
+            context.saveOrLog()
+        }
     }
 
     private func muscleBinding(_ muscle: Muscle) -> Binding<Double> {

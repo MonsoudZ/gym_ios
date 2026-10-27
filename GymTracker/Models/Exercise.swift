@@ -6,6 +6,9 @@ final class Exercise {
     /// Stable identity for program days and plans; the name is editable.
     var id: UUID = UUID()
     @Attribute(.unique) var name: String
+    /// The library entry this exercise was seeded from, if any. Survives renaming, so the
+    /// seeder does not recreate a renamed library lift and unit changes still find its plate step.
+    var librarySpecName: String?
     var muscles: [MuscleWeight]
     var repRangeLow: Int
     var repRangeHigh: Int
@@ -20,6 +23,7 @@ final class Exercise {
     init(spec: ExerciseSpec) {
         id = UUID()
         name = spec.name
+        librarySpecName = spec.name
         muscles = spec.muscles
         repRangeLow = spec.repRangeLow
         repRangeHigh = spec.repRangeHigh
@@ -44,7 +48,10 @@ final class Exercise {
         restSeconds = RestRule.defaultSeconds(repRangeHigh: repRangeHigh)
     }
 
-    var isFromLibrary: Bool { ExerciseLibrary.spec(name) != nil }
+    /// The library entry behind this exercise: the one it was seeded from, or, for exercises
+    /// made before that was recorded, the one sharing its name.
+    var librarySpec: ExerciseSpec? { ExerciseLibrary.spec(librarySpecName ?? name) }
+    var isFromLibrary: Bool { librarySpec != nil }
 
     var config: ExerciseConfig {
         ExerciseConfig(repRangeLow: repRangeLow, repRangeHigh: repRangeHigh, increment: increment,

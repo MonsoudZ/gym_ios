@@ -14,11 +14,23 @@ enum DemoData {
         }
     }
 
+    /// Marks demo sessions so loading twice adds nothing and a reset or cleanup can find them.
+    static let importKeyPrefix = "demo|"
+
+    /// Writes the history around whatever is already there: a day with a weigh-in or any food
+    /// keeps it, a demo session already present is not written again, and the goal and profile
+    /// are only set on an install that has nothing logged yet and still has the default goal.
     static func load(context: ModelContext, exercises: [Exercise], settings: UserSettings) {
         var rng = SplitMix64(state: 42)
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
         let start = cal.date(byAdding: .day, value: -56, to: today)!
+
+        let weightDays = Set(((try? context.fetch(FetchDescriptor<BodyweightEntry>())) ?? []).map(\.date))
+        let intakeDays = Set(((try? context.fetch(FetchDescriptor<IntakeEntry>())) ?? []).map { cal.startOfDay(for: $0.date) })
+        let existingSessions = (try? context.fetch(FetchDescriptor<WorkoutSession>())) ?? []
+        let demoKeys = Set(existingSessions.compactMap(\.importKey).filter { $0.hasPrefix(importKeyPrefix) })
+        let hasHistory = !weightDays.isEmpty || !intakeDays.isEmpty || existingSessions.contains(where: \.isCompleted)
 
         // History is written on the Upper / Lower rotation; the user's chosen split stays active.
         var dayIDsByName: [String: UUID] = [:]
@@ -27,21 +39,28 @@ enum DemoData {
             if settings.activeProgramID == nil { settings.activeProgramID = upperLower.id }
             dayIDsByName = Dictionary(upperLower.days.map { ($0.name, $0.id) }, uniquingKeysWith: { first, _ in first })
         }
-        settings.goal = .cut
-        settings.goalRatePercentPerWeek = -0.5
-        settings.assumedWeightKg = Units.kg(fromLb: 185)
+        if !hasHistory, settings.goal == .maintain, settings.goalRatePercentPerWeek == 0 {
+            settings.goal = .cut
+            settings.goalRatePercentPerWeek = -0.5
+            settings.assumedWeightKg = Units.kg(fromLb: 185)
+        }
 
         // Bodyweight and intake, one entry per day.
         for day in 0...56 {
             let date = cal.date(byAdding: .day, value: day, to: start)!
             let trendLb = 185 - 0.75 * Double(day) / 7
             let noise = Double.random(in: -1.5...1.5, using: &rng)
-            context.insert(BodyweightEntry(date: date, kg: Units.kg(fromLb: (trendLb + noise).rounded(toPlaces: 1))))
+            if !weightDays.contains(date) {
+                context.insert(BodyweightEntry(date: date, kg: Units.kg(fromLb: (trendLb + noise).rounded(toPlaces: 1))))
+            }
 
-            if day < 56, Double.random(in: 0...1, using: &rng) > 0.08 {
-                let kcal = Double.random(in: 2100...2500, using: &rng).rounded()
-                let protein = Double.random(in: 160...190, using: &rng).rounded()
-                let fat = Double.random(in: 60...80, using: &rng).rounded()
+            // Random draws happen whether or not the row is written, so the history is the same
+            // regardless of what was already there.
+            let logsFood = Double.random(in: 0...1, using: &rng) > 0.08
+            let kcal = Double.random(in: 2100...2500, using: &rng).rounded()
+            let protein = Double.random(in: 160...190, using: &rng).rounded()
+            let fat = Double.random(in: 60...80, using: &rng).rounded()
+            if day < 56, logsFood, !intakeDays.contains(date) {
                 let carbs = max(0, (kcal - 4 * protein - 9 * fat) / 4).rounded()
                 context.insert(IntakeEntry(date: date.addingTimeInterval(12 * 3600), name: "Day total",
                                            kcal: kcal, protein: protein, carbs: carbs, fat: fat, fibre: 28))
@@ -68,11 +87,14 @@ enum DemoData {
                 let day = template.days[dayIndex % template.days.count]
                 dayIndex += 1
                 sessionCount += 1
-                let session = WorkoutSession(date: date, templateDayName: day.name,
-                                             sleepHours: Double.random(in: 6...8.5, using: &rng).rounded(toPlaces: 1))
+                let key = importKeyPrefix + String(Int(date.timeIntervalSince1970))
+                let sleep = Double.random(in: 6...8.5, using: &rng).rounded(toPlaces: 1)
+                let alreadyLoaded = demoKeys.contains(key)
+                let session = WorkoutSession(date: date, templateDayName: day.name, sleepHours: sleep)
                 session.programDayID = dayIDsByName[day.name]
                 session.isCompleted = true
-                context.insert(session)
+                session.importKey = key
+                if !alreadyLoaded { context.insert(session) }
 
                 for (order, spec) in day.specs.enumerated() {
                     guard let exercise = exercises.first(where: { $0.name == spec.name }) else { continue }
@@ -89,6 +111,7 @@ enum DemoData {
                         case .held: reps = max(spec.repRangeLow, spec.repRangeHigh - 1 - setNumber / 2); rpe = 9
                         default: reps = max(1, spec.repRangeLow - 1); rpe = 10
                         }
+                        guard !alreadyLoaded else { continue }
                         let set = SetEntry(exerciseOrder: order, setNumber: setNumber, weight: weight, reps: reps, rpe: rpe)
                         set.completedAt = date
                         set.exercise = exercise

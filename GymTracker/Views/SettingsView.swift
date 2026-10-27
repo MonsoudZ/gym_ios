@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
     @Query(sort: \Program.createdAt) private var programs: [Program]
     @State private var confirmReset = false
+    @State private var confirmDemo = false
 
     var body: some View {
         NavigationStack {
@@ -214,11 +215,14 @@ private struct SettingsForm: View {
 
             Section("Data") {
                 NavigationLink("Import from Strong or Hevy") { WorkoutImportView() }
-                Button("Load demo data (8 weeks)") {
-                    DemoData.load(context: context, exercises: exercises, settings: settings)
-                }
+                Button("Load demo data (8 weeks)") { confirmDemo = true }
                 Button("Reset everything", role: .destructive) { confirmReset = true }
             }
+        }
+        .confirmationDialog("Add eight weeks of made-up workouts, weigh-ins and food? Days you have already logged are kept as they are.",
+                            isPresented: $confirmDemo, titleVisibility: .visible) {
+            Button("Load demo data") { DemoData.load(context: context, exercises: exercises, settings: settings) }
+            Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog("Delete all workouts, weights and food?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Delete everything", role: .destructive) { Seeder.resetAll(context: context) }

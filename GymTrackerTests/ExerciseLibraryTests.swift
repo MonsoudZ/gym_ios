@@ -164,6 +164,55 @@ final class ExerciseLibraryTests: XCTestCase {
     }
 
     @MainActor
+    func testRenamedLibraryExerciseIsNotRecreatedOnLaunch() throws {
+        let context = try makeContext()
+        Seeder.prepare(context: context)
+        let bench = try XCTUnwrap(try context.fetch(FetchDescriptor<Exercise>()).first { $0.name == "Barbell Bench Press" })
+        XCTAssertEqual(bench.librarySpecName, "Barbell Bench Press")
+        bench.name = "Bench Press"
+        try context.save()
+
+        Seeder.prepare(context: context)
+        let exercises = try context.fetch(FetchDescriptor<Exercise>())
+        XCTAssertEqual(exercises.count, ExerciseLibrary.all.count, "the renamed lift must not be seeded again")
+        XCTAssertNil(exercises.first { $0.name == "Barbell Bench Press" })
+        XCTAssertTrue(bench.isFromLibrary)
+        XCTAssertEqual(bench.librarySpec?.name, "Barbell Bench Press")
+    }
+
+    @MainActor
+    func testOlderInstallLibraryLiftsGainTheirSpecNameFromTheirName() throws {
+        let context = try makeContext()
+        context.insert(UserSettings())
+        let row = Exercise(spec: ExerciseLibrary.spec("Back Squat")!)
+        row.librarySpecName = nil   // as stored before the column existed
+        context.insert(row)
+        try context.save()
+        Seeder.prepare(context: context)
+        XCTAssertEqual(row.librarySpecName, "Back Squat")
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Exercise>()), ExerciseLibrary.all.count)
+    }
+
+    @MainActor
+    func testUnitSwitchRemapsDefaultStepsAndKeepsCustomOnes() throws {
+        let context = try makeContext()
+        Seeder.prepare(context: context)
+        Seeder.applyUnits(metric: false, context: context)
+        let exercises = try context.fetch(FetchDescriptor<Exercise>())
+        let bench = try XCTUnwrap(exercises.first { $0.name == "Barbell Bench Press" })
+        let curl = try XCTUnwrap(exercises.first { $0.name == "Barbell Curl" })
+        let custom = Exercise(name: "Landmine Press", metric: false)
+        context.insert(custom)
+        XCTAssertEqual(Units.lb(fromKg: bench.increment), 5, accuracy: 0.001)
+        curl.increment = Units.kg(fromLb: 1)   // the lifter's own micro-plate step
+
+        Seeder.applyUnits(metric: true, context: context)
+        XCTAssertEqual(bench.increment, 2.5, accuracy: 0.001, "default step follows the unit")
+        XCTAssertEqual(Units.lb(fromKg: curl.increment), 1, accuracy: 0.001, "a custom step is kept")
+        XCTAssertEqual(Units.lb(fromKg: custom.increment), 5, accuracy: 0.001, "custom exercises are not touched")
+    }
+
+    @MainActor
     func testPickerGroupsByMainMuscleInDeclarationOrderWithOtherLast() {
         var exercises = ExerciseLibrary.all.map { Exercise(spec: $0) }
         let custom = Exercise(name: "Mystery Machine", metric: true)

@@ -28,10 +28,13 @@ nonisolated struct ImportedWorkout: Hashable, Sendable {
     var source: WorkoutImportSource
     var name: String
     var date: Date
+    /// The date exactly as the file wrote it. The key is built from this rather than `date`
+    /// so the same file gives the same keys whatever time zone it is imported in.
+    var dateText: String
     var sets: [ImportedSet]
 
     /// Stable across exports of the same history, so importing a file twice adds nothing.
-    var key: String { "\(source.rawValue)|\(Int(date.timeIntervalSince1970))|\(name)" }
+    var key: String { "\(source.rawValue)|\(dateText)|\(name)" }
 
     /// Exercises in order of first appearance.
     var exerciseNames: [String] {
@@ -120,7 +123,8 @@ nonisolated enum WorkoutImportParser {
             let order = (table.value(row, "Set Order") ?? "").lowercased()
             if order.contains("rest timer") || order.hasPrefix("note") { continue }
             guard let exercise = table.value(row, "Exercise Name"),
-                  let date = strongDate(table.value(row, "Date"), timeZone: timeZone),
+                  let dateText = table.value(row, "Date"),
+                  let date = strongDate(dateText, timeZone: timeZone),
                   let reps = reps(table.value(row, "Reps")) else { builder.skipped += 1; continue }
             var unit = assumedUnit
             if unitColumn, let text = table.value(row, "Weight Unit") {
@@ -130,7 +134,7 @@ nonisolated enum WorkoutImportParser {
             guard weight >= 0 else { builder.skipped += 1; continue }
             let set = ImportedSet(exerciseName: exercise, weightKg: unit.kilograms(weight), reps: reps,
                                   rpe: rpe(table.value(row, "RPE")), isWarmup: order.hasPrefix("w"))
-            builder.add(set, workoutName: table.value(row, "Workout Name") ?? "Strong workout", date: date)
+            builder.add(set, workoutName: table.value(row, "Workout Name") ?? "Strong workout", date: date, dateText: dateText)
         }
         return builder.finish(unitFromFile: unitColumn)
     }
@@ -159,14 +163,15 @@ nonisolated enum WorkoutImportParser {
         }
         for row in table.rows {
             guard let exercise = table.value(row, "exercise_title"),
-                  let date = hevyDate(table.value(row, "start_time"), timeZone: timeZone),
+                  let dateText = table.value(row, "start_time"),
+                  let date = hevyDate(dateText, timeZone: timeZone),
                   let reps = reps(table.value(row, "reps")) else { builder.skipped += 1; continue }
             let weight = CSVTable.number(table.value(row, weightColumn)) ?? 0
             guard weight >= 0 else { builder.skipped += 1; continue }
             let type = (table.value(row, "set_type") ?? "").lowercased()
             let set = ImportedSet(exerciseName: exercise, weightKg: unit.kilograms(weight), reps: reps,
                                   rpe: rpe(table.value(row, "rpe")), isWarmup: type == "warmup" || type == "warm up" || type == "2")
-            builder.add(set, workoutName: table.value(row, "title") ?? "Hevy workout", date: date)
+            builder.add(set, workoutName: table.value(row, "title") ?? "Hevy workout", date: date, dateText: dateText)
         }
         return builder.finish(unitFromFile: unitFromFile)
     }
@@ -189,13 +194,13 @@ nonisolated enum WorkoutImportParser {
 
         init(source: WorkoutImportSource) { self.source = source }
 
-        mutating func add(_ set: ImportedSet, workoutName: String, date: Date) {
-            let key = ImportedWorkout(source: source, name: workoutName, date: date, sets: []).key
+        mutating func add(_ set: ImportedSet, workoutName: String, date: Date, dateText: String) {
+            let key = ImportedWorkout(source: source, name: workoutName, date: date, dateText: dateText, sets: []).key
             if let index = indexByKey[key] {
                 workouts[index].sets.append(set)
             } else {
                 indexByKey[key] = workouts.count
-                workouts.append(ImportedWorkout(source: source, name: workoutName, date: date, sets: [set]))
+                workouts.append(ImportedWorkout(source: source, name: workoutName, date: date, dateText: dateText, sets: [set]))
             }
         }
 

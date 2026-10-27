@@ -206,6 +206,25 @@ final class WorkoutImportTests: XCTestCase {
         super.tearDown()
     }
 
+    func testKeysDoNotDependOnTheTimeZoneTheFileIsParsedIn() throws {
+        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        let here = try WorkoutImportParser.parse(strongCurrent, assumedUnit: .lb, timeZone: denver)
+        let there = try WorkoutImportParser.parse(strongCurrent, assumedUnit: .lb, timeZone: tokyo)
+        XCTAssertEqual(here.workouts.map(\.key), there.workouts.map(\.key))
+        XCTAssertNotEqual(here.workouts[0].date, there.workouts[0].date, "the dates themselves follow the zone")
+    }
+
+    @MainActor
+    func testImportMapsToARenamedLibraryLift() throws {
+        let context = try makeContext()
+        Seeder.seedIfNeeded(context: context)
+        let exercises = try context.fetch(FetchDescriptor<Exercise>())
+        let bench = try XCTUnwrap(exercises.first { $0.name == "Barbell Bench Press" })
+        bench.name = "Comp Bench"
+        let mapping = WorkoutImportService.defaultMapping(for: ["Bench Press (Barbell)"], exercises: exercises)
+        XCTAssertEqual(mapping["Bench Press (Barbell)"], .existing(bench.id))
+    }
+
     @MainActor
     func testImportWritesCompletedSessionsCreatesCustomExercisesAndIsIdempotent() throws {
         let context = try makeContext()
