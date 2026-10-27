@@ -15,7 +15,7 @@ final class NutritionEngineTests: XCTestCase {
     func testTrendSmoothsPerCalendarDayAcrossGaps() {
         // Two weigh-ins seven days apart: the second carries the weight of seven daily steps.
         let trend = NutritionEngine.trend([DatedValue(date: day(-7), value: 80), DatedValue(date: day(0), value: 78)])
-        let expected = 80 + (1 - pow(0.9, 7)) * (78 - 80)
+        let expected = 80.0 + (1 - pow(0.9, 7.0)) * (78.0 - 80.0)
         XCTAssertEqual(trend[1].value, expected, accuracy: 0.0001)
         XCTAssertLessThan(trend[1].value, 79.0, "more than the single 0.1 step of the per-entry rule")
     }
