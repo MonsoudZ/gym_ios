@@ -61,7 +61,11 @@ enum HealthService {
 
     // MARK: Reading
 
-    /// Daily averages of both heart metrics over the last `lookbackDays` days, today included.
+    /// Only samples before this hour count toward a day's reading, so "this morning's HRV" is the
+    /// morning's and does not drift all day as the watch adds samples (notably after training).
+    nonisolated static let morningEndHour = 12
+
+    /// Morning averages of both heart metrics over the last `lookbackDays` days, today included.
     /// Days with neither reading are left out.
     static func dailySamples(now: Date = .now, calendar: Calendar = .current) async -> [DailyHeartSample] {
         guard isAvailable else { return [] }
@@ -79,14 +83,17 @@ enum HealthService {
                                       calendar: Calendar) async -> [Date: Double] {
         let predicate = HKSamplePredicate.quantitySample(
             type: type, predicate: HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate))
+        // Buckets of `morningEndHour` hours anchored at midnight: the first bucket of each day is
+        // the morning, the second is dropped.
         let descriptor = HKStatisticsCollectionQueryDescriptor(
-            predicate: predicate, options: .discreteAverage, anchorDate: start, intervalComponents: DateComponents(day: 1))
+            predicate: predicate, options: .discreteAverage, anchorDate: start, intervalComponents: DateComponents(hour: morningEndHour))
         guard let collection = try? await descriptor.result(for: store) else { return [:] }
         var result: [Date: Double] = [:]
         collection.enumerateStatistics(from: start, to: end) { stats, _ in
-            if let value = stats.averageQuantity()?.doubleValue(for: unit) {
-                result[calendar.startOfDay(for: stats.startDate)] = value
-            }
+            let day = calendar.startOfDay(for: stats.startDate)
+            // The morning bucket is the one starting at midnight (within an hour, for DST days).
+            guard abs(stats.startDate.timeIntervalSince(day)) < 3600, let value = stats.averageQuantity()?.doubleValue(for: unit) else { return }
+            result[day] = value
         }
         return result
     }

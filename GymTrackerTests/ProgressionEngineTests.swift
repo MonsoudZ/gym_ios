@@ -86,6 +86,43 @@ final class ProgressionEngineTests: XCTestCase {
         XCTAssertEqual(p.weight, 80)
     }
 
+    func testDeloadAlwaysDropsAtLeastOneStep() {
+        // 10 kg × 0.9 = 9, which rounds back to 10 on a 2.5 kg grid; the deload must still drop.
+        XCTAssertEqual(ProgressionEngine.reduce(10, by: 0.9, increment: 2.5), 7.5)
+        XCTAssertEqual(ProgressionEngine.reduce(12.5, by: 0.9, increment: 2.5), 10)
+        XCTAssertEqual(ProgressionEngine.reduce(100, by: 0.9, increment: 2.5), 90)
+        let fiveLb = Units.kg(fromLb: 5)
+        XCTAssertEqual(Units.lb(fromKg: ProgressionEngine.reduce(Units.kg(fromLb: 25), by: 0.9, increment: fiveLb)), 20, accuracy: 0.001)
+        XCTAssertEqual(ProgressionEngine.reduce(0, by: 0.9, increment: 2.5), 0)
+
+        let light = ExerciseConfig(repRangeLow: 6, repRangeHigh: 8, increment: 2.5, setCount: 3, rpeCap: 9)
+        let stalled = [session(10, reps: [7, 7, 7], daysAgo: 6), session(10, reps: [7, 7, 7], daysAgo: 3), session(10, reps: [7, 7, 7])]
+        let p = ProgressionEngine.prescription(history: stalled, config: light, weeklySetsForPrimaryMuscle: 12)
+        XCTAssertEqual(p.stallAction, .deload)
+        XCTAssertEqual(p.weight, 7.5)
+    }
+
+    func testReadinessCutSmallerThanAStepIsNotClaimed() {
+        let low = Readiness(sleepHours: 5)
+        let heavy = ProgressionEngine.prescription(history: [session(100, reps: [7, 7, 7])], config: config, muscles: chest, readiness: low)
+        XCTAssertEqual(heavy.weight, 95)
+        XCTAssertTrue(heavy.readinessAdjusted)
+        let light = ProgressionEngine.prescription(history: [session(20, reps: [7, 7, 7])], config: config, muscles: chest, readiness: low)
+        XCTAssertEqual(light.weight, 20, "5% of 20 kg is 1 kg, under half a 2.5 kg step")
+        XCTAssertFalse(light.readinessAdjusted)
+        XCTAssertTrue(light.reason.contains("less than a plate step"))
+    }
+
+    func testMissingRPEOnATopSetIsExplained() {
+        let noRPE = SessionResult(date: .now, sets: [LoggedSet(weight: 80, reps: 8, rpe: nil), LoggedSet(weight: 80, reps: 8, rpe: 8), LoggedSet(weight: 80, reps: 8, rpe: 8)])
+        XCTAssertEqual(ProgressionEngine.verdict(for: noRPE.sets, config: config), .held)
+        XCTAssertEqual(ProgressionEngine.topSetsMissingRPE(noRPE.sets, config: config), 1)
+        let p = ProgressionEngine.prescription(history: [noRPE], config: config)
+        XCTAssertEqual(p.weight, 80)
+        XCTAssertTrue(p.reason.contains("no RPE logged"), p.reason)
+        XCTAssertEqual(p.rpeCap, 9)
+    }
+
     func testDeloadBoundaryResetsStreak() {
         // Three stalls, then a deload session, then one more held session: streak should be 2, not 5.
         let history = [

@@ -12,6 +12,14 @@ final class NutritionEngineTests: XCTestCase {
         XCTAssertEqual(trend[1].value, 80.2, accuracy: 0.0001)
     }
 
+    func testTrendSmoothsPerCalendarDayAcrossGaps() {
+        // Two weigh-ins seven days apart: the second carries the weight of seven daily steps.
+        let trend = NutritionEngine.trend([DatedValue(date: day(-7), value: 80), DatedValue(date: day(0), value: 78)])
+        let expected = 80 + (1 - pow(0.9, 7)) * (78 - 80)
+        XCTAssertEqual(trend[1].value, expected, accuracy: 0.0001)
+        XCTAssertLessThan(trend[1].value, 79.0, "more than the single 0.1 step of the per-entry rule")
+    }
+
     func testConstantWeightGivesTdeeEqualToMeanIntake() {
         let intake = (1...14).map { DatedValue(date: day(-$0), value: 2000) }
         let trend = (0...15).map { DatedValue(date: day(-$0), value: 80) }

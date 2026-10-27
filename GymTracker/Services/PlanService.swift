@@ -64,10 +64,11 @@ enum PlanService {
         return VolumeTracker.weeklyVolume(sets)
     }
 
-    /// The volume the stall check sees: the recent weekly average plus what today adds.
+    /// The volume the stall check sees (DESIGN.md §2.3 step 1): the two-week average alone.
+    /// That average already holds the last instance of today's day, so adding today's planned
+    /// sets on top counted the day twice and the "under 10, add a set" branch almost never ran.
     static func volumeForStallCheck(dayExercises: [Exercise], completedSessions: [WorkoutSession], asOf: Date = .now) -> [Muscle: Double] {
         averageWeeklyVolume(completedSessions: completedSessions, asOf: asOf)
-            .merging(plannedVolume(for: dayExercises), uniquingKeysWith: +)
     }
 
     static func prescription(for exercise: Exercise, readiness: Readiness?, weeklyVolume: [Muscle: Double], metric: Bool) -> Prescription {

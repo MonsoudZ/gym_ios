@@ -369,7 +369,7 @@ struct TodayView: View {
 
     private func prescriptionLine(_ p: Prescription, metric: Bool) -> String {
         if p.needsStartingWeight { return "\(p.setCount) × \(p.repRangeLow)–\(p.repRangeHigh), weight to be chosen" }
-        return "\(Units.weight(p.weight, metric: metric)) · \(p.setCount) × \(p.repRangeLow)–\(p.repRangeHigh) · RPE ≤ \(Units.number(9))"
+        return "\(Units.weight(p.weight, metric: metric)) · \(p.setCount) × \(p.repRangeLow)–\(p.repRangeHigh) · RPE ≤ \(Units.number(p.rpeCap))"
     }
 
     private func startWorkout(_ today: Today) {

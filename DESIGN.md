@@ -80,7 +80,16 @@ marks it stalled. The app then:
 2. Checks readiness (§2.4). If readiness has been low for most of those sessions, it
    suggests fixing sleep/soreness before deloading.
 3. Otherwise it prescribes a 10% load reduction and resets the stall counter.
-   The next three sessions use the normal rules to climb back.
+   The next three sessions use the normal rules to climb back. The reduction is rounded to
+   the plate step and always drops at least one step: 10% of a light load can round back
+   onto the same weight, and a deload that changes nothing never clears the stall.
+
+The volume checked in step 1 is the two-week average alone. It already contains the last
+instance of today's day, so today's planned sets are not added on top.
+
+RPE is required on working sets because a missing RPE counts as 10: a set that hit the top
+of the range with no RPE cannot earn *Progressed*. Finishing a workout with such sets asks
+first, and the next prescription says which sets were affected.
 
 This keeps deloads rare and earned, which matches the evidence that they are not needed
 on a fixed schedule.
@@ -104,10 +113,14 @@ Health-filled sleep on its own is not a check-in: the Today tab still asks. The 
   with a one-line explanation. The rep targets do not change.
 - Heart reading: the baseline is the mean and sample SD of each metric over the 7 days
   before today, needing at least 4 days with a reading (days without one are skipped,
-  not zero). The morning is low when HRV is more than one SD below its mean or resting
+  not zero). A day's reading is the average of samples before noon, so "this morning's HRV"
+  is the morning's and does not drift as the watch adds samples after training.
+  The morning is low when HRV is more than one SD below its mean or resting
   heart rate more than one SD above its mean (`HeartRateRule`). Low → the same × 0.95.
   The reading and the baseline it was judged against are stored on the day's entry and
   copied to the session, so the flag can be explained after Health's numbers move.
+- The 5% is rounded to the plate step. On a load where 5% is under half a step the weight
+  stays and the card says so, rather than claiming a cut it did not make.
 - The effect is deliberately small and capped at 5%, because the evidence supports
   "sleep matters" and "HRV-guided training can work" much better than any specific
   magnitude (§2.1). Any one low input makes the day low; they never stack.
@@ -178,17 +191,21 @@ is never touched; a day Health filled is updated when Health's number for it cha
 scale that writes to Health then removes the daily typing entirely.
 
 1. **Trend weight.** Exponential moving average, α = 0.1. Today's trend =
-   0.1 × today's weight + 0.9 × yesterday's trend.
+   0.1 × today's weight + 0.9 × yesterday's trend. The step is per calendar day: after a gap
+   of g days without a weigh-in the new value gets weight 1 − 0.9^g, so a twice-a-week
+   weigher's trend still follows them.
 2. **Expenditure estimate** over the last 14 days:
    `TDEE ≈ mean daily intake − (7700 × Δtrend_kg) / 14`
    Missing intake days are excluded from the mean and the window extends to keep 14
    logged days. Fewer than 10 logged days → estimate shown as "low confidence".
-3. **Calibration period.** For the first 14 days the target comes from Mifflin–St Jeor ×
-   activity factor and is labelled provisional.
+3. **Calibration period.** Until 14 days of intake have been logged the target comes from
+   Mifflin–St Jeor × activity factor and is labelled provisional. The estimate's own
+   confidence (low under 10 logged days, medium to 13, high at 14) is shown alongside.
 
 ### 3.3 Weekly adjustment
 
-Every 7 days, compare the trend's rate of change to the goal rate.
+Every 7 days, compare the trend's rate of change to the goal rate. The first check comes a
+week after the goal was set (or changed), never the moment the target becomes adaptive.
 
 | Situation | Adjustment |
 |---|---|

@@ -92,16 +92,23 @@ nonisolated enum NutritionEngine {
     // MARK: Trend weight
 
     /// Exponential moving average over the series, oldest first. First value seeds the trend.
+    /// The smoothing is per calendar day, not per entry: after a gap of `g` days the new
+    /// weigh-in gets weight 1 − 0.9^g, what it would have had if it had been logged each of
+    /// those days, so a twice-a-week weigher gets a trend that actually follows them.
     static func trend(_ weights: [DatedValue]) -> [DatedValue] {
         let sorted = weights.sorted { $0.date < $1.date }
         var result: [DatedValue] = []
         var current: Double?
+        var previousDate: Date?
         for point in sorted {
-            if let previous = current {
-                current = smoothing * point.value + (1 - smoothing) * previous
+            if let previous = current, let previousDate {
+                let gap = max(1, daysBetween(previousDate, point.date))
+                let weight = 1 - pow(1 - smoothing, Double(gap))
+                current = previous + weight * (point.value - previous)
             } else {
                 current = point.value
             }
+            previousDate = point.date
             result.append(DatedValue(date: point.date, value: current!))
         }
         return result

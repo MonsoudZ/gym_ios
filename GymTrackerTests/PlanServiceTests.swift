@@ -92,7 +92,7 @@ final class PlanServiceTests: XCTestCase {
     }
 
     @MainActor
-    func testTodaysPlannedSetsCountTowardTheStallCheck() throws {
+    func testTodaysPlannedSetsDoNotInflateTheStallCheck() throws {
         let context = try makeContext()
         let bench = Exercise(spec: ExerciseLibrary.spec("Barbell Bench Press")!)   // 3 sets: chest 1, triceps 0.5, front delt 0.5
         let pushdown = Exercise(spec: ExerciseLibrary.spec("Triceps Pushdown")!)   // 3 sets: triceps 1
@@ -105,8 +105,8 @@ final class PlanServiceTests: XCTestCase {
         let sessions = [completedSession(bench, on: october(15, hour: 7), sets: 6, in: context)]
         context.saveOrLog()
         let volume = PlanService.volumeForStallCheck(dayExercises: [bench, pushdown], completedSessions: sessions, asOf: october(19, hour: 8))
-        XCTAssertEqual(volume[.chest]!, 9, accuracy: 0.0001)      // 6 last week + 3 today
-        XCTAssertEqual(volume[.triceps]!, 7.5, accuracy: 0.0001)  // 3 + 4.5
+        XCTAssertEqual(volume[.chest]!, 6, accuracy: 0.0001, "last week's 6 sets; today's planned 3 are the same day coming round again")
+        XCTAssertEqual(volume[.triceps]!, 3, accuracy: 0.0001)
     }
 
     // MARK: Session results

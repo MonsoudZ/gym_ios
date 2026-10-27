@@ -12,6 +12,7 @@ struct WorkoutView: View {
     private let timer = RestTimer.shared
     @State private var restsFinished = 0
     @State private var confirmPartialFinish = false
+    @State private var confirmMissingRPE = false
     @State private var confirmDiscard = false
     @State private var showAddExercise = false
     @State private var swapping: Exercise?
@@ -90,6 +91,11 @@ struct WorkoutView: View {
                 Button("Finish") { requestFinish() }
             }
         }
+        .confirmationDialog("\(setsMissingRPE) logged set\(setsMissingRPE == 1 ? " has" : "s have") no RPE. Without it a set counts as RPE 10 and cannot progress the lift.",
+                            isPresented: $confirmMissingRPE, titleVisibility: .visible) {
+            Button("Go back and add RPE", role: .cancel) {}
+            Button("Finish anyway") { requestFinish(ignoringMissingRPE: true) }
+        }
         .confirmationDialog("Finish with \(session.loggedSetCount) of \(session.sets.count) sets logged?",
                             isPresented: $confirmPartialFinish, titleVisibility: .visible) {
             Button("Finish workout") { finish() }
@@ -152,10 +158,18 @@ struct WorkoutView: View {
     }
 
     /// Finishes at once when every set has reps; otherwise asks, since finishing drops the rest.
-    private func requestFinish() {
+    /// Logged working sets with no RPE. The engine counts a missing RPE as 10, so these cannot
+    /// earn a Progressed verdict (DESIGN.md §2.2: RPE is required on working sets).
+    private var setsMissingRPE: Int {
+        session.sets.filter { !$0.isWarmup && $0.reps > 0 && $0.rpe == nil }.count
+    }
+
+    private func requestFinish(ignoringMissingRPE: Bool = false) {
         let logged = session.loggedSetCount
         if logged == 0 {
             confirmDiscard = true
+        } else if setsMissingRPE > 0, !ignoringMissingRPE {
+            confirmMissingRPE = true
         } else if logged < session.sets.count {
             confirmPartialFinish = true
         } else {
@@ -196,6 +210,7 @@ private struct SessionExercisePicker: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
+    @Query(filter: #Predicate<WorkoutSession> { $0.isCompleted }) private var completedSessions: [WorkoutSession]
     @State private var query = ""
 
     private var candidates: [Exercise] {
@@ -235,8 +250,13 @@ private struct SessionExercisePicker: View {
         }
     }
 
+    /// The same inputs the Today plan used, so a swapped-in lift is 5% lighter on a low day and
+    /// a stalled one gets the volume check before a deload.
     private func choose(_ exercise: Exercise) {
-        let prescription = PlanService.prescription(for: exercise, readiness: nil, weeklyVolume: [:], metric: metric)
+        let readiness = session.readiness
+        let volume = PlanService.volumeForStallCheck(dayExercises: session.orderedExercises, completedSessions: completedSessions)
+        let prescription = PlanService.prescription(for: exercise, readiness: readiness.hasAnyInput ? readiness : nil,
+                                                    weeklyVolume: volume, metric: metric)
         if let replacing {
             session.swap(replacing, for: exercise, weight: prescription.weight, in: context)
         } else {

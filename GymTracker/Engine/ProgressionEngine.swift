@@ -96,6 +96,7 @@ nonisolated struct Prescription: Hashable, Sendable {
     var repRangeHigh: Int
     var setCount: Int
     var reason: String
+    var rpeCap: Double = 9
     var lastVerdict: Verdict? = nil
     var stallStreak: Int = 0
     var stallAction: StallAction? = nil
@@ -150,6 +151,21 @@ nonisolated enum ProgressionEngine {
     static func round(_ weight: Double, toIncrement increment: Double) -> Double {
         guard increment > 0 else { return weight }
         return (weight / increment).rounded() * increment
+    }
+
+    /// `weight × factor` on the plate grid, always at least one step below `weight`. Rounding
+    /// alone can land back on the same load (25 lb × 0.9 with a 5 lb step), and a deload that
+    /// changes nothing never clears the stall it was meant to break.
+    static func reduce(_ weight: Double, by factor: Double, increment: Double) -> Double {
+        let rounded = round(weight * factor, toIncrement: increment)
+        guard rounded < weight else { return max(0, weight - max(increment, 0)) }
+        return rounded
+    }
+
+    /// Working sets that reached the top of the range but carry no RPE. The verdict counts a
+    /// missing RPE as 10, so these are the sets that silently block progression.
+    static func topSetsMissingRPE(_ sets: [LoggedSet], config: ExerciseConfig) -> Int {
+        sets.filter { !$0.isWarmup && $0.reps >= config.repRangeHigh && $0.rpe == nil }.count
     }
 
     /// Consecutive sessions without a Progressed verdict, counted back from the most recent,
@@ -209,7 +225,7 @@ nonisolated enum ProgressionEngine {
                              weeklySetsForPrimaryMuscle: Double? = nil,
                              formatWeight: (Double) -> String = { "\(format($0)) kg" }) -> Prescription {
         let low = config.repRangeLow, high = config.repRangeHigh
-        var result = Prescription(weight: 0, repRangeLow: low, repRangeHigh: high, setCount: config.setCount, reason: "")
+        var result = Prescription(weight: 0, repRangeLow: low, repRangeHigh: high, setCount: config.setCount, reason: "", rpeCap: config.rpeCap)
 
         guard let last = history.last, let lastWeight = topWorkingWeight(last.sets) else {
             if let start = config.startingWeight, start > 0 {
@@ -240,7 +256,7 @@ nonisolated enum ProgressionEngine {
                 result.reason = "Stalled, but readiness was low for most of those sessions. Fix sleep and soreness before deloading."
             } else {
                 result.stallAction = .deload
-                result.weight = round(lastWeight * deloadFactor, toIncrement: config.increment)
+                result.weight = reduce(lastWeight, by: deloadFactor, increment: config.increment)
                 result.reason = "Stalled for \(stall.streak) sessions. Deload 10% to \(formatWeight(result.weight)) and climb back."
             }
         } else {
@@ -250,7 +266,10 @@ nonisolated enum ProgressionEngine {
                 result.reason = "Hit \(high) reps on every set at RPE \(format(config.rpeCap)) or below. Add \(formatWeight(config.increment))."
             case .held:
                 result.weight = lastWeight
-                result.reason = "Same weight. Chase \(high) reps on every set."
+                let missing = topSetsMissingRPE(last.sets, config: config)
+                result.reason = missing > 0
+                    ? "Same weight. \(missing) set\(missing == 1 ? "" : "s") hit \(high) reps with no RPE logged, which counts as RPE 10. Log RPE to progress."
+                    : "Same weight. Chase \(high) reps on every set."
             case .failed:
                 result.weight = lastWeight
                 result.reason = "Missed the rep range last time. Repeat the weight once."
@@ -261,9 +280,14 @@ nonisolated enum ProgressionEngine {
         }
 
         if let readiness, readiness.isLow(for: muscles), result.weight > 0 {
-            result.weight = round(result.weight * Readiness.loadMultiplier, toIncrement: config.increment)
-            result.readinessAdjusted = true
-            result.reason += " Readiness is low, so today is 5% lighter."
+            let lighter = round(result.weight * Readiness.loadMultiplier, toIncrement: config.increment)
+            if lighter < result.weight {
+                result.weight = lighter
+                result.readinessAdjusted = true
+                result.reason += " Readiness is low, so today is 5% lighter."
+            } else {
+                result.reason += " Readiness is low, but 5% is less than a plate step here, so the load stays."
+            }
         }
         return result
     }

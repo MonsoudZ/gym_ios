@@ -103,6 +103,7 @@ private struct SettingsForm: View {
                 .onChange(of: settings.goal) { _, goal in
                     settings.goalRatePercentPerWeek = goal.defaultRatePercentPerWeek
                     settings.cumulativeAdjustmentKcal = 0
+                    settings.lastAdjustmentDate = .now   // a new goal gets a clean week before its first check
                 }
                 if settings.goal != .maintain {
                     let range = settings.goal.rateRange

@@ -33,7 +33,9 @@ enum NutritionService {
         let estimate = NutritionEngine.expenditure(intake: intakeSeries, trend: trend, asOf: asOf)
         let base: Double
         let provisional: Bool
-        if let estimate, estimate.confidence != .low {
+        // Provisional until the window is full (DESIGN.md §3.2: 14 logged days), not merely past
+        // the low-confidence line. The confidence label is still shown for the estimate itself.
+        if let estimate, estimate.loggedDays >= NutritionEngine.windowDays {
             base = estimate.tdee
             provisional = false
         } else {
@@ -47,7 +49,10 @@ enum NutritionService {
 
         let rate = NutritionEngine.trendRatePercentPerWeek(trend: trend, asOf: asOf)
         var suggestion: Adjustment?
-        let dueForAdjustment = settings.lastAdjustmentDate.map { NutritionEngine.daysBetween($0, asOf) >= 7 } ?? true
+        // A week since the last check, or since the goal was set, so the first check is not
+        // offered the moment the target becomes adaptive, against a week on another target.
+        let anchor = settings.lastAdjustmentDate ?? settings.createdAt
+        let dueForAdjustment = NutritionEngine.daysBetween(anchor, asOf) >= 7
         if let rate, !provisional, dueForAdjustment {
             suggestion = NutritionEngine.weeklyAdjustment(trendRatePercentPerWeek: rate, goalRatePercentPerWeek: settings.goalRatePercentPerWeek)
         }
