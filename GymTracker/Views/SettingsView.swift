@@ -6,13 +6,12 @@ struct SettingsView: View {
     @Query private var settingsList: [UserSettings]
     @Query(sort: \Exercise.name) private var exercises: [Exercise]
     @Query(sort: \Program.createdAt) private var programs: [Program]
-    @State private var confirmReset = false
 
     var body: some View {
         NavigationStack {
             Group {
                 if let settings = settingsList.first {
-                    SettingsForm(settings: settings, exercises: exercises, programs: programs, confirmReset: $confirmReset)
+                    SettingsForm(settings: settings, exercises: exercises, programs: programs)
                 } else {
                     ProgressView()
                 }
@@ -29,8 +28,6 @@ private struct SettingsForm: View {
     @Bindable var settings: UserSettings
     var exercises: [Exercise]
     var programs: [Program]
-    @Binding var confirmReset: Bool
-    @State private var confirmDemo = false
     @State private var exportFiles: ExportFiles?
     @State private var exportError: String?
     @Query(sort: \BodyweightEntry.date) private var weights: [BodyweightEntry]
@@ -236,21 +233,11 @@ private struct SettingsForm: View {
                 Button("Export to CSV", systemImage: "square.and.arrow.up") { export() }
                 NavigationLink("Import from Strong or Hevy") { WorkoutImportView() }
                 NavigationLink("Import weigh-ins or food") { NutritionImportView() }
-                Button("Load demo data (8 weeks)") { confirmDemo = true }
-                Button("Reset everything", role: .destructive) { confirmReset = true }
             } header: {
                 Text("Data")
             } footer: {
                 Text("Export writes workouts, weigh-ins, food, readiness and weekly checks as CSV files. The workouts, weigh-in and food files import back into this app, so the export is also a backup.")
             }
-        }
-        .confirmationDialog("Add eight weeks of made-up workouts, weigh-ins and food? Days you have already logged are kept as they are.",
-                            isPresented: $confirmDemo, titleVisibility: .visible) {
-            Button("Load demo data") { DemoData.load(context: context, exercises: exercises, settings: settings) }
-            Button("Cancel", role: .cancel) {}
-        }
-        .confirmationDialog("Delete all workouts, weights and food?", isPresented: $confirmReset, titleVisibility: .visible) {
-            Button("Delete everything", role: .destructive) { Seeder.resetAll(context: context) }
         }
         .sheet(item: $exportFiles) { files in
             ShareSheet(items: files.urls)

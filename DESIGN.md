@@ -266,8 +266,9 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
 
 **First launch**
 
-- One sheet: units, goal (with the rate and protein each implies), starting split, and an
-  optional 8-week demo history. Everything on it is also in Settings. Existing installs skip it.
+- One sheet: units, goal (with the rate and protein each implies) and starting split. Everything
+  on it is also in Settings. Existing installs skip it. There is no demo history and no reset:
+  the app shows what the lifter has done, from the first workout on (§2.3, "first session").
 
 **Today screen**
 

@@ -10,8 +10,6 @@ struct OnboardingView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
-    @State private var loadDemo = false
-
     private var builtIns: [Program] {
         BuiltInPrograms.all.compactMap { builtIn in programs.first { $0.name == builtIn.name } }
     }
@@ -66,11 +64,6 @@ struct OnboardingView: View {
                 } footer: {
                     Text("Every split hits each muscle at least twice a week. You can edit the days and exercises, or build your own, later.")
                 }
-                Section {
-                    Toggle("Load 8 weeks of demo history", isOn: $loadDemo)
-                } footer: {
-                    Text("Fills every screen with plausible lifts, weigh-ins and meals so you can see how the app reads. Reset everything in Settings when you want a clean start.")
-                }
             }
             .navigationTitle("Welcome")
             .navigationBarTitleDisplayMode(.inline)
@@ -98,9 +91,6 @@ struct OnboardingView: View {
 
     private func finish() {
         Seeder.applyUnits(metric: settings.usesMetric, context: context)
-        if loadDemo {
-            DemoData.load(context: context, exercises: exercises, settings: settings)
-        }
         settings.hasCompletedOnboarding = true
         context.saveOrLog()
         dismiss()

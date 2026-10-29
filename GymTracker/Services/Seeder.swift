@@ -134,26 +134,4 @@ enum Seeder {
         context.saveOrLog()
     }
 
-    static func resetAll(context: ModelContext) {
-        // Workouts this app wrote to Health go too, and the reminders planned for the old data.
-        let healthIDs = ((try? context.fetch(FetchDescriptor<WorkoutSession>())) ?? []).compactMap(\.healthWorkoutID)
-        if !healthIDs.isEmpty {
-            Task { for id in healthIDs { await HealthService.deleteWorkout(id: id) } }
-        }
-        try? context.delete(model: SetEntry.self)
-        try? context.delete(model: WorkoutSession.self)
-        try? context.delete(model: ReadinessEntry.self)
-        try? context.delete(model: AdjustmentEntry.self)
-        try? context.delete(model: Exercise.self)
-        try? context.delete(model: BodyweightEntry.self)
-        try? context.delete(model: IntakeEntry.self)
-        try? context.delete(model: UserSettings.self)
-        try? context.delete(model: FoodItem.self)
-        try? context.delete(model: SavedMeal.self)
-        try? context.delete(model: ProgramDay.self)
-        try? context.delete(model: Program.self)
-        context.saveOrLog()
-        prepare(context: context)
-        LogReminders.refresh(context: context)
-    }
 }
