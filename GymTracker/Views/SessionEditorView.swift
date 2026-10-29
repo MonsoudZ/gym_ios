@@ -6,6 +6,10 @@ import SwiftData
 /// so fixing a set here fixes everything downstream (DESIGN.md §5).
 struct SessionEditorView: View {
     @Bindable var session: WorkoutSession
+    /// True when the editor sits inside a sheet (the exercise guide). There a disappearance is
+    /// always a pop or the sheet going away, never a tab switch, and swiping the sheet down
+    /// with the editor pushed does not turn `isPresented` off.
+    var insideSheet = false
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     /// False once this screen has been popped. A tab switch also calls onDisappear, and tidying
@@ -32,7 +36,7 @@ struct SessionEditorView: View {
             if !presented { tidy() }
         }
         .onDisappear {
-            if !isPresented { tidy() }
+            if insideSheet || !isPresented { tidy() }
         }
     }
 

@@ -80,9 +80,10 @@ nonisolated enum ExerciseMatcher {
         "bar", "ez", "trap", "hex", "rope", "straight", "v", "assisted", "weighted", "bodyweight", "bench",
     ]
 
-    /// Equipment words that change which lift it is, as opposed to attachments and grips.
+    /// Equipment words that change which lift it is, as opposed to attachments, grips and how
+    /// much load is added ("weighted", "assisted" are the same movement).
     private static let implementWords: Set<String> = [
-        "barbell", "dumbbell", "cable", "machine", "smith", "kettlebell", "band", "bands", "bodyweight", "assisted", "weighted", "rope",
+        "barbell", "dumbbell", "cable", "machine", "smith", "kettlebell", "band", "bands", "bodyweight", "rope",
     ]
 
     private static let qualifierWords: Set<String> = [
@@ -126,7 +127,7 @@ nonisolated enum ExerciseMatcher {
         "straight arm lat pulldown": "Straight-Arm Pulldown",
         "bent over row dumbbell": "Dumbbell Row", "dumbbell row": "Dumbbell Row", "single arm row dumbbell": "Dumbbell Row",
         "one arm dumbbell row": "Dumbbell Row", "dumbbell bent over row": "Dumbbell Row", "single arm dumbbell row": "Dumbbell Row",
-        "face pull": "Face Pull", "face pull cable": "Face Pull",
+        "face pull": "Face Pull", "face pull cable": "Face Pull", "face pull rope": "Face Pull", "face pull cable rope": "Face Pull",
         "rack pull": "Rack Pull", "rack pull barbell": "Rack Pull",
         "back extension": "Back Extension", "back extension machine": "Back Extension", "45 degree back extension": "Back Extension",
         "shrug barbell": "Barbell Shrug", "barbell shrug": "Barbell Shrug",

@@ -218,6 +218,39 @@ final class ProgressionEngineTests: XCTestCase {
         XCTAssertEqual(ProgressionEngine.prescription(history: unchanged, config: config).weight, 102.5)
     }
 
+    func testAMissOnTheLighterDayHoldsThatLoadOnce() {
+        // 100 Held → 95 on a bad day → 5,5,5: Failed. Same load once (§2.3), not back up to 100.
+        let history = [session(100, reps: [7, 7, 7], daysAgo: 4), session(95, reps: [5, 5, 5], daysAgo: 1, lowReadiness: true)]
+        let p = ProgressionEngine.prescription(history: history, config: config)
+        XCTAssertEqual(p.weight, 95)
+        XCTAssertEqual(p.lastVerdict, .failed)
+    }
+
+    func testABadWeekOfPullBacksStillReturnsToTheBaseline() {
+        // Two low days in a row, both at the cut load: the baseline is still the 100 before them.
+        let history = [
+            session(100, reps: [7, 7, 7], daysAgo: 7),
+            session(95, reps: [7, 7, 7], daysAgo: 4, lowReadiness: true),
+            session(95, reps: [7, 7, 7], daysAgo: 1, lowReadiness: true),
+        ]
+        let p = ProgressionEngine.prescription(history: history, config: config)
+        XCTAssertEqual(p.weight, 100)
+        XCTAssertEqual(p.stallStreak, 3, "the lighter days still count toward the stall")
+        // Two of the three stalled sessions were low-readiness days: step 2 says fix recovery
+        // before deloading, at the real baseline.
+        XCTAssertEqual(p.stallAction, .fixRecovery)
+        let withVolume = ProgressionEngine.prescription(history: history, config: config, weeklySetsForPrimaryMuscle: 12)
+        XCTAssertEqual(withVolume.stallAction, .fixRecovery)
+        XCTAssertEqual(withVolume.weight, 100)
+    }
+
+    func testAnEarnedIncrementSurvivesALowDay() {
+        // 100 Progressed earns 102.5; the bad day cut that to 97.5. The baseline is the 102.5
+        // the lifter earned, not the 100 they last lifted on a normal day.
+        let history = [session(100, reps: [8, 8, 8], daysAgo: 4), session(97.5, reps: [8, 8, 8], daysAgo: 1, lowReadiness: true)]
+        XCTAssertEqual(ProgressionEngine.prescription(history: history, config: config).weight, 102.5)
+    }
+
     func testProgressBreaksTheStreak() {
         let history = [session(80, reps: [7, 7, 7], daysAgo: 7), session(80, reps: [7, 7, 7], daysAgo: 4), session(80, reps: [8, 8, 8], daysAgo: 1)]
         let p = ProgressionEngine.prescription(history: history, config: config)

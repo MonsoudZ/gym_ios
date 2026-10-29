@@ -143,11 +143,15 @@ nonisolated enum NutritionEngine {
     /// daily weigh-ins and 14 consecutive logged days that is the spec's 14 (DESIGN.md §3.2);
     /// gaps in logging stretch the span, which the rate accounts for.
     static func expenditure(intake: [DatedValue], trend: [DatedValue], asOf: Date) -> ExpenditureEstimate? {
-        let logged = intake.filter { $0.date <= asOf }.sorted { $0.date < $1.date }.suffix(windowDays)
-        guard logged.count >= minimumLoggedDays,
-              let first = logged.first,
+        let recent = intake.filter { $0.date <= asOf }.sorted { $0.date < $1.date }.suffix(windowDays)
+        guard let first = recent.first,
               let startTrend = value(in: trend, atOrBefore: first.date),
               let endTrend = value(in: trend, atOrBefore: asOf) else { return nil }
+        // Only intake eaten between the two weigh-ins the change is measured over can explain
+        // it. If weigh-ins stopped early the window shrinks and so does the confidence, rather
+        // than one day's scale noise being divided by one day and read as hundreds of kcal.
+        let logged = recent.filter { $0.date >= startTrend.date && $0.date < endTrend.date }
+        guard logged.count >= minimumLoggedDays else { return nil }
         let span = max(1, daysBetween(startTrend.date, endTrend.date))
         let meanIntake = logged.map(\.value).reduce(0, +) / Double(logged.count)
         let delta = endTrend.value - startTrend.value

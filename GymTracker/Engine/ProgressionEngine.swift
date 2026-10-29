@@ -263,21 +263,29 @@ nonisolated enum ProgressionEngine {
         result.lastVerdict = lastVerdict
         result.stallStreak = stall.streak
 
-        // A low-readiness day lifted lighter than the session before it, and not by enough to be
-        // a deload, was the engine's own 5% pull-back. The lift's baseline is the load before it
-        // (DESIGN.md §2.4: readiness only pulls a bad day back): the lighter day neither lowers
-        // the baseline nor earns an increment on top of it.
-        var baseline = lastWeight
-        var pulledBack = false
-        if last.readinessWasLow,
-           let lastIndex = history.lastIndex(where: { $0 == last }),
-           let before = history[..<lastIndex].last(where: { topWorkingWeight($0.sets) != nil }),
-           let beforeWeight = topWorkingWeight(before.sets),
-           lastWeight < beforeWeight,
-           !isDeloadBoundary(current: lastWeight, previous: beforeWeight, readinessWasLow: true, increment: config.increment) {
-            baseline = beforeWeight
-            pulledBack = true
+        // A trailing run of low-readiness days, each lifted at or under the session before it and
+        // none by enough to be a deload, was the engine's own 5% pull-back (one bad day, or a bad
+        // week). The lift's baseline is what the engine would have prescribed before the run with
+        // readiness aside (DESIGN.md §2.4: readiness only pulls a bad day back): the lighter days
+        // neither lower the baseline nor earn an increment on top of it.
+        var runStart: Int?
+        if var cursorIndex = history.lastIndex(where: { $0 == last }) {
+            var cursorWeight = lastWeight
+            while history[cursorIndex].readinessWasLow,
+                  let beforeIndex = history[..<cursorIndex].lastIndex(where: { topWorkingWeight($0.sets) != nil }),
+                  let beforeWeight = topWorkingWeight(history[beforeIndex].sets),
+                  cursorWeight <= beforeWeight,
+                  !isDeloadBoundary(current: cursorWeight, previous: beforeWeight, readinessWasLow: true, increment: config.increment) {
+                runStart = cursorIndex
+                cursorIndex = beforeIndex
+                cursorWeight = beforeWeight
+            }
         }
+        let pulledBack = runStart != nil
+        let baseline = runStart.map {
+            prescription(history: Array(history[..<$0]), config: config, muscles: muscles,
+                         weeklySetsForPrimaryMuscle: weeklySetsForPrimaryMuscle, formatWeight: formatWeight).weight
+        } ?? lastWeight
 
         let stalled = stall.streak >= stallThreshold || stall.consecutiveFails >= consecutiveFailThreshold
         if stalled {
@@ -298,6 +306,10 @@ nonisolated enum ProgressionEngine {
                     result.reason += " Every set was RPE 10; stop a rep or two short of failure on the way back up."
                 }
             }
+        } else if pulledBack && lastVerdict == .failed {
+            // A miss is a miss, lighter day or not: same load once (§2.3), not back up.
+            result.weight = lastWeight
+            result.reason = "Missed the rep range on last session's lighter day. Repeat the weight once."
         } else if pulledBack {
             result.weight = baseline
             result.reason = lastVerdict == .progressed

@@ -61,6 +61,22 @@ final class NutritionEngineTests: XCTestCase {
         XCTAssertEqual(est.confidence, .high)
     }
 
+    func testWeighInsThatStopEarlyShrinkTheWindowInsteadOfAmplifyingNoise() {
+        // 14 days of food, but the scale was only used on the first two: the change is known over
+        // one day, which one day of intake cannot support. No estimate, rather than mean − 770.
+        let intake = (1...14).map { DatedValue(date: day(-$0), value: 2000) }
+        let trend = [DatedValue(date: day(-14), value: 80.0), DatedValue(date: day(-13), value: 80.1)]
+        XCTAssertNil(NutritionEngine.expenditure(intake: intake, trend: trend, asOf: .now))
+        // A twice-a-week weigher: the change runs between their weigh-ins and the intake eaten
+        // between them counts, at the confidence those days earn.
+        let sparse = [DatedValue(date: day(-16), value: 80.5), DatedValue(date: day(-12), value: 80.3),
+                      DatedValue(date: day(-9), value: 80.2), DatedValue(date: day(-5), value: 80.0), DatedValue(date: day(-2), value: 79.9)]
+        let est = NutritionEngine.expenditure(intake: intake, trend: NutritionEngine.trend(sparse), asOf: .now)!
+        XCTAssertEqual(est.spanDays, 14, "from the weigh-in before the first logged day to the latest")
+        XCTAssertEqual(est.loggedDays, 12, "the days eaten between those two weigh-ins")
+        XCTAssertEqual(est.confidence, .medium)
+    }
+
     func testConfidenceBoundaries() {
         let trend = (0...20).map { DatedValue(date: day(-$0), value: 80) }
         func confidence(_ days: Int) -> Confidence? {

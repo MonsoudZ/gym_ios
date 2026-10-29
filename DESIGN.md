@@ -45,8 +45,9 @@ mixed, the spec says so, and the rule is conservative.
 - Exercise, weight, reps, RPE (6–10 in 0.5 steps). RPE is required on working sets.
 - Set type: warm-up or working. Only working sets count toward volume. A "Warm-up sets" button
   ramps to the working weight at 50 / 70 / 90 % for 8 / 5 / 2 reps (one 60 % set under 40 kg,
-  none under an empty bar). The ladder is coaching convention, not a study result. Any set can
-  be flipped between warm-up and working.
+  none under an empty bar: 20 kg, or 45 lb in pounds, so the floor sits on the lifter's plate
+  grid). The ladder is coaching convention, not a study result. Any set can be flipped between
+  warm-up and working.
 - Sets and exercises can be added during the workout; the plan is a starting point, not a cage.
 - Each exercise maps to one or more muscles with a weighting (bench: chest 1.0, triceps 0.5,
   front delt 0.5). Weekly volume is the weighted sum of working sets.
@@ -85,7 +86,14 @@ marks it stalled. The app then:
    onto the same weight, and a deload that changes nothing never clears the stall.
 
 The volume checked in step 1 is the two-week average alone. It already contains the last
-instance of today's day, so today's planned sets are not added on top.
+instance of today's day, so today's planned sets are not added on top. A muscle with no sets in
+the window counts as zero, so a lift stalled before a break is offered a set, not a deload.
+
+A session is read as a deload when its top load is more than 5% under the previous session's.
+On a low-readiness day the engine's own 5% cut can round past that line (97.5 → 92.5 kg), so
+there the line is the cut load itself: only a session lighter than the readiness cut would have
+made it counts as a deload. A session holding only warm-ups (the lift was skipped after warming
+up) has no verdict and is skipped over; it never reads as "no history".
 
 RPE is required on working sets because a missing RPE counts as 10: a set that hit the top
 of the range with no RPE cannot earn *Progressed*. Finishing a workout with such sets asks
@@ -125,7 +133,15 @@ Health-filled sleep on its own is not a check-in: the Today tab still asks. The 
   "sleep matters" and "HRV-guided training can work" much better than any specific
   magnitude (§2.1). Any one low input makes the day low; they never stack.
 - Readiness never *raises* loads. It only pulls a bad day back. A high HRV or a low
-  resting heart rate changes nothing.
+  resting heart rate changes nothing. A pulled-back day is not a new baseline either: the
+  next session returns to what the engine would have prescribed before the bad day, or bad
+  week, with readiness aside (100 kg Held, 95 kg on a bad day, then 100 kg again, not 97.5
+  "up from 95"; 100 kg Progressed, 97.5 on a bad day, then the earned 102.5). The one
+  exception is a miss on the lighter day, which repeats that load once like any miss. The
+  stall count carries on through pulled-back days.
+- A Health read that fails, or is cut short by the app leaving the foreground, leaves the
+  stored reading alone. Only Health answering with nothing (or the feature being turned off)
+  clears what Health had filled in.
 - Health is read only after the lifter turns the feature on, which is what asks for
   permission. Health does not say whether reading was allowed; the Today tab just shows
   that no reading arrived.
@@ -136,7 +152,7 @@ Health-filled sleep on its own is not a check-in: the Today tab still asks. The 
 |---|---|
 | < 10 | "Under the evidence-based minimum" — suggest +1–2 sets on a lift for that muscle. |
 | 10–20 | Normal. |
-| > 20 | Shown in amber. If the muscle's lifts are also stalling, suggest −2 sets. |
+| > 20 | Shown in amber. If a lift for the muscle is stalled (§2.3: three sessions without progress, or two misses), suggest −2 sets. |
 
 The dose–response direction comes from Schoenfeld 2017 and Pelland 2026; the 10 and 20
 set bands themselves are practical heuristics, not thresholds reported in those papers.
@@ -192,8 +208,9 @@ Inputs: daily intake (kcal), daily morning bodyweight.
 
 Bodyweight can be filled from Health (off by default; `BodyweightImport`): the earliest sample
 of each day over the last 60 days is the morning weigh-in. A day the lifter typed a weight for
-is never touched; a day Health filled is updated when Health's number for it changes. A smart
-scale that writes to Health then removes the daily typing entirely.
+is never touched; a day Health filled is updated when Health's number for it changes. A
+Health-filled weigh-in the lifter deletes is not filled in again. A smart scale that writes to
+Health then removes the daily typing entirely.
 
 1. **Trend weight.** Exponential moving average, α = 0.1. Today's trend =
    0.1 × today's weight + 0.9 × yesterday's trend. The step is per calendar day: after a gap
@@ -201,6 +218,9 @@ scale that writes to Health then removes the daily typing entirely.
    weigher's trend still follows them.
 2. **Expenditure estimate** over the last 14 days:
    `TDEE ≈ mean daily intake − (7700 × Δtrend_kg) / 14`
+   Δtrend runs from the trend on the first logged day's morning to the latest trend this
+   morning, the morning after the last logged day's eating, so both terms cover the same
+   days; the divisor is the days between those two trend points, 14 with daily weigh-ins.
    Missing intake days are excluded from the mean and the window extends to keep 14
    logged days. Fewer than 10 logged days → estimate shown as "low confidence".
 3. **Calibration period.** Until 14 days of intake have been logged the target comes from
@@ -210,7 +230,10 @@ scale that writes to Health then removes the daily typing entirely.
 ### 3.3 Weekly adjustment
 
 Every 7 days, compare the trend's rate of change to the goal rate. The first check comes a
-week after the goal was set (or changed), never the moment the target becomes adaptive.
+week after the goal was set (or its rate changed), never the moment the target becomes
+adaptive. A check also needs a weigh-in since the last one, and a trend whose latest weigh-in
+is over a week old gives no rate at all: last week's rate, already acted on, is never applied
+a second time because food kept being logged.
 
 | Situation | Adjustment |
 |---|---|
@@ -223,7 +246,8 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
 
 ### 3.4 Macro targets
 
-- Protein: 1.8 g/kg maintaining or gaining; 2.2 g/kg cutting.
+- Protein: 1.8 g/kg maintaining or gaining; 2.2 g/kg cutting. The lifter can override the
+  figure; choosing a new goal clears the override so the goal's own figure applies.
 - Fat: floor 0.7 g/kg; default 25% of calories.
 - Carbs: whatever remains. When calories change, carbs change first.
 - Fibre: shown as a soft target of 14 g per 1000 kcal (USDA guideline), not enforced.
@@ -299,7 +323,8 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
   with it. The trend chart lives on the Progress tab only.
 - Per muscle: weekly hard sets as a bar chart against the 10 / 20 bands.
 - Bodyweight: trend line over raw dots, with the goal slope drawn as a dashed reference
-  through the latest trend point. The food list and the weigh-in field refer to a chosen day
+  through the latest trend point over the last four weeks (drawn across a long history it
+  dwarfs the trend). The food list and the weigh-in field refer to a chosen day
   (today by default, arrows to go back), so a forgotten dinner or weigh-in lands on its day;
   every weigh-in is listed for correction or deletion.
 - Expenditure: current estimate, confidence, and how it has moved. A "Past checks" row
@@ -313,8 +338,8 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
 - Correcting history: a lift's session rows, and the Last session card, open the session
   for editing: weight, reps, RPE, warm-up flag, add or delete sets, the date, or delete the
   whole workout. Verdicts, stall streaks and the next prescription are recomputed, so a
-  mistyped set stops poisoning them. Clearing a set's reps drops it on leaving; a session
-  left with no sets is removed.
+  mistyped set stops poisoning them. Clearing a set's reps drops it on leaving the editor
+  (switching tabs and back is not leaving); a session left with no sets is removed.
 
 **Importing history**
 

@@ -208,7 +208,7 @@ struct ExerciseDetailView: View {
     /// A row opens its session for editing when the session still exists.
     @ViewBuilder private func sessionLink<Content: View>(for sessionID: UUID?, @ViewBuilder content: () -> Content) -> some View {
         if let session = completedSessions.first(where: { $0.id == sessionID }) {
-            NavigationLink { SessionEditorView(session: session) } label: { content() }
+            NavigationLink { SessionEditorView(session: session, insideSheet: true) } label: { content() }
         } else {
             content()
         }

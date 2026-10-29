@@ -192,7 +192,11 @@ final class WorkoutImportTests: XCTestCase {
                      "Hip Thrust (Bodyweight)", "Chest Press (Band)", "Pushdown (Cable - Rope)"] {
             XCTAssertNil(ExerciseMatcher.libraryName(for: name), name)
         }
-        // The lift's own implement and plain grips still strip.
+        // The lift's own implement, plain grips, and how much load is added still strip.
+        XCTAssertEqual(ExerciseMatcher.libraryName(for: "Chest Dip (Weighted)"), "Dip")
+        XCTAssertEqual(ExerciseMatcher.libraryName(for: "Push Up (Weighted)"), "Push-Up")
+        XCTAssertEqual(ExerciseMatcher.libraryName(for: "Back Extension (Weighted)"), "Back Extension")
+        XCTAssertEqual(ExerciseMatcher.libraryName(for: "Face Pull (Rope)"), "Face Pull")
         XCTAssertEqual(ExerciseMatcher.libraryName(for: "Lat Pulldown - Wide Grip (Cable)"), "Lat Pulldown")
         XCTAssertEqual(ExerciseMatcher.libraryName(for: "Back Squat (Barbell) - Low Bar"), "Back Squat")
         XCTAssertEqual(ExerciseMatcher.libraryName(for: "Goblet Squat (Kettlebell)"), "Goblet Squat")
