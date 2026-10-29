@@ -47,9 +47,9 @@ struct WorkoutView: View {
                     HStack {
                         if !exerciseSets.contains(where: \.isWarmup),
                            let working = exerciseSets.first(where: { !$0.isWarmup }),
-                           !WarmupRule.ramp(workingWeight: working.weight, increment: exercise.increment).isEmpty {
+                           !WarmupRule.ramp(workingWeight: working.weight, increment: exercise.increment, metric: metric).isEmpty {
                             Button("Warm-up sets", systemImage: "flame") {
-                                session.addWarmups(for: exercise, in: context)
+                                session.addWarmups(for: exercise, in: context, metric: metric)
                                 context.saveOrLog()
                             }
                         }

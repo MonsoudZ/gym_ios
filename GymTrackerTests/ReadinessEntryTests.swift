@@ -28,6 +28,16 @@ final class ReadinessEntryTests: XCTestCase {
     }
 
     @MainActor
+    func testHealthSleepJustUnderSixHoursIsLow() {
+        // 5.96 h rounded to a tenth is 6.0, which would have passed the "< 6 h" test.
+        let entry = ReadinessEntry(date: .now)
+        entry.applyHealthSleep(5.96)
+        XCTAssertTrue(entry.readiness.isLow(for: []))
+        entry.applyHealthSleep(6.0)
+        XCTAssertFalse(entry.readiness.isLow(for: []))
+    }
+
+    @MainActor
     func testAFailedHealthReadLeavesTheStoredReadingAlone() {
         let entry = ReadinessEntry(date: .now)
         let reading = HeartReadiness(hrvMs: 48, restingHeartRate: 60,
@@ -59,7 +69,7 @@ final class ReadinessEntryTests: XCTestCase {
     func testHealthSleepFillsTheDayButIsNotACheckInAndTypingWins() {
         let entry = ReadinessEntry(date: .now)
         XCTAssertTrue(entry.applyHealthSleep(7.26))
-        XCTAssertEqual(entry.sleepHours, 7.3, "rounded to a tenth, as the field shows it")
+        XCTAssertEqual(entry.sleepHours, 7.26, "stored as Health gives it; the field formats to a tenth")
         XCTAssertTrue(entry.sleepFromHealth)
         XCTAssertFalse(entry.isLogged, "Health filled it; the lifter has not checked in")
         XCTAssertTrue(entry.readiness.hasAnyInput, "but the plan still uses it")

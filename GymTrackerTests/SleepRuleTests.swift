@@ -23,6 +23,19 @@ final class SleepRuleTests: XCTestCase {
         XCTAssertEqual(SleepRule.window(now: evening, calendar: calendar).end, at(19, 14))
     }
 
+    func testWindowKeepsItsClockTimesAcrossADSTChange() {
+        // Denver falls back on 1 Nov 2026: adding 14 hours to midnight gives 13:00 that day.
+        let fallBackEvening = calendar.date(from: DateComponents(year: 2026, month: 11, day: 1, hour: 20))!
+        let fall = SleepRule.window(now: fallBackEvening, calendar: calendar)
+        XCTAssertEqual(calendar.dateComponents([.day, .hour], from: fall.end), DateComponents(day: 1, hour: 14))
+        XCTAssertEqual(calendar.dateComponents([.day, .hour], from: fall.start), DateComponents(day: 31, hour: 18))
+        // Springs forward on 8 Mar 2026: the same window the other way.
+        let springEvening = calendar.date(from: DateComponents(year: 2026, month: 3, day: 8, hour: 20))!
+        let spring = SleepRule.window(now: springEvening, calendar: calendar)
+        XCTAssertEqual(calendar.dateComponents([.day, .hour], from: spring.end), DateComponents(day: 8, hour: 14))
+        XCTAssertEqual(calendar.dateComponents([.day, .hour], from: spring.start), DateComponents(day: 7, hour: 18))
+    }
+
     func testOneNightSumsToItsLength() {
         let hours = SleepRule.hoursAsleep([SleepInterval(start: at(18, 23), end: at(19, 6, 30))], now: morning, calendar: calendar)
         XCTAssertEqual(hours!, 7.5, accuracy: 0.001)

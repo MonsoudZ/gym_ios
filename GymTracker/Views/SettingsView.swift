@@ -109,12 +109,16 @@ private struct SettingsForm: View {
                     settings.goalRatePercentPerWeek = goal.defaultRatePercentPerWeek
                     settings.cumulativeAdjustmentKcal = 0
                     settings.lastAdjustmentDate = .now   // a new goal gets a clean week before its first check
+                    settings.proteinPerKgOverride = nil  // and its own protein (2.2 g/kg on a cut), DESIGN.md §3.4
                 }
                 if settings.goal != .maintain {
                     let range = settings.goal.rateRange
                     VStack(alignment: .leading) {
                         Text("Rate: \(Units.percent(settings.goalRatePercentPerWeek)) of bodyweight per week")
                         Slider(value: $settings.goalRatePercentPerWeek, in: range, step: 0.05)
+                            // A changed rate is a changed goal (DESIGN.md §3.3): the first check against it
+                            // waits a week, rather than judging last week's trend by the new rate.
+                            .onChange(of: settings.goalRatePercentPerWeek) { _, _ in settings.lastAdjustmentDate = .now }
                             .accessibilityLabel("Rate of \(settings.goal.label.lowercased())")
                             .accessibilityValue("\(Units.percent(settings.goalRatePercentPerWeek)) of bodyweight per week")
                         Text(settings.goal == .cut

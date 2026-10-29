@@ -20,9 +20,12 @@ nonisolated enum SleepRule {
     static let nightEndHour = 14
 
     static func window(now: Date, calendar: Calendar = .current) -> (start: Date, end: Date) {
+        // Set the hour on the calendar day rather than adding hours to midnight: on a DST day
+        // midnight plus 14 hours is 13:00 or 15:00.
         let today = calendar.startOfDay(for: now)
-        let start = calendar.date(byAdding: .hour, value: nightStartHour - 24, to: today) ?? today
-        let end = calendar.date(byAdding: .hour, value: nightEndHour, to: today) ?? today
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+        let start = calendar.date(bySettingHour: nightStartHour, minute: 0, second: 0, of: yesterday) ?? today
+        let end = calendar.date(bySettingHour: nightEndHour, minute: 0, second: 0, of: today) ?? today
         return (start, min(end, now))
     }
 

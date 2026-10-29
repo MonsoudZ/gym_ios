@@ -201,15 +201,19 @@ final class ExerciseLibraryTests: XCTestCase {
         let exercises = try context.fetch(FetchDescriptor<Exercise>())
         let bench = try XCTUnwrap(exercises.first { $0.name == "Barbell Bench Press" })
         let curl = try XCTUnwrap(exercises.first { $0.name == "Barbell Curl" })
-        let custom = Exercise(name: "Landmine Press", metric: false)
+        let custom = Exercise(name: "Landmine Press", metric: false)   // created in pounds: a 5 lb step
+        let customOwnStep = Exercise(name: "Belt Squat", metric: false)
+        customOwnStep.increment = Units.kg(fromLb: 7.5)
         context.insert(custom)
+        context.insert(customOwnStep)
         XCTAssertEqual(Units.lb(fromKg: bench.increment), 5, accuracy: 0.001)
         curl.increment = Units.kg(fromLb: 1)   // the lifter's own micro-plate step
 
         Seeder.applyUnits(metric: true, context: context)
         XCTAssertEqual(bench.increment, 2.5, accuracy: 0.001, "default step follows the unit")
         XCTAssertEqual(Units.lb(fromKg: curl.increment), 1, accuracy: 0.001, "a custom step is kept")
-        XCTAssertEqual(Units.lb(fromKg: custom.increment), 5, accuracy: 0.001, "custom exercises are not touched")
+        XCTAssertEqual(custom.increment, 2.5, accuracy: 0.001, "a custom exercise on the pound default moves to the kilogram default")
+        XCTAssertEqual(Units.lb(fromKg: customOwnStep.increment), 7.5, accuracy: 0.001, "a custom exercise on its own step is kept")
     }
 
     @MainActor

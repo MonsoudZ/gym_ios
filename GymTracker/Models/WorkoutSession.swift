@@ -116,10 +116,10 @@ final class WorkoutSession {
 
     /// Inserts ramp sets before the exercise's working sets, renumbering so they sort first.
     @discardableResult
-    func addWarmups(for exercise: Exercise, in context: ModelContext) -> [SetEntry] {
+    func addWarmups(for exercise: Exercise, in context: ModelContext, metric: Bool = true) -> [SetEntry] {
         let existing = sets(for: exercise)
         guard let working = existing.first(where: { !$0.isWarmup }) else { return [] }
-        let ramp = WarmupRule.ramp(workingWeight: working.weight, increment: exercise.increment)
+        let ramp = WarmupRule.ramp(workingWeight: working.weight, increment: exercise.increment, metric: metric)
         guard !ramp.isEmpty else { return [] }
         for set in existing { set.setNumber += ramp.count }
         let order = exerciseOrder(of: exercise)

@@ -26,8 +26,9 @@ enum LogReminders {
         let today = calendar.startOfDay(for: now)
         var planned: [PlannedReminder] = []
         for offset in 0..<horizonDays {
+            // Set the clock time on the day, so a DST change does not shift the reminder an hour.
             guard let day = calendar.date(byAdding: .day, value: offset, to: today),
-                  let fire = calendar.date(byAdding: .minute, value: minutesAfterMidnight, to: day),
+                  let fire = calendar.date(bySettingHour: minutesAfterMidnight / 60, minute: minutesAfterMidnight % 60, second: 0, of: day),
                   fire > now else { continue }
             // Only today's can know what is already logged; later days get the general nudge.
             guard let text = offset == 0 ? message(hasWeight: hasWeightToday, hasIntake: hasIntakeToday)

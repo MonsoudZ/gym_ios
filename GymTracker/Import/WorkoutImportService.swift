@@ -63,6 +63,9 @@ enum WorkoutImportService {
             case .existing(let id): return byID[id]
             case .create:
                 if let existing = created[name] { return existing }
+                // Exercise.name is unique, so inserting a second one would overwrite the first
+                // (muscles, rep range and a new id). Use what is there.
+                if let existing = exercises.first(where: { $0.name == name }) { return existing }
                 let exercise = Exercise(name: name, metric: metric)
                 context.insert(exercise)
                 created[name] = exercise

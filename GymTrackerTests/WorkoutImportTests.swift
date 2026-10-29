@@ -287,6 +287,29 @@ final class WorkoutImportTests: XCTestCase {
     }
 
     @MainActor
+    func testCreateForANameThatAlreadyExistsReusesItInsteadOfOverwriting() throws {
+        // Exercise.name is unique: inserting a second "Squat (Barbell)" would upsert over the
+        // first with blank muscles, a new id, and break every program day that points at it.
+        let context = try makeContext()
+        let existing = Exercise(name: "Squat (Barbell)", metric: false)
+        existing.muscles = [MuscleWeight(muscle: .quads, weight: 1)]
+        context.insert(existing)
+        try context.save()
+        let file = try WorkoutImportParser.parse(strongCurrent, assumedUnit: .lb, timeZone: denver)
+        var mapping = WorkoutImportService.defaultMapping(for: file.exerciseCounts.map(\.name), exercises: [existing])
+        for name in mapping.keys where name != "Squat (Barbell)" { mapping[name] = .skip }
+        mapping["Squat (Barbell)"] = .create
+
+        let outcome = WorkoutImportService.apply(file, mapping: mapping, exercises: [existing], metric: false, context: context)
+        XCTAssertTrue(outcome.exercisesCreated.isEmpty)
+        let all = try context.fetch(FetchDescriptor<Exercise>())
+        XCTAssertEqual(all.count, 1)
+        XCTAssertEqual(all[0].id, existing.id)
+        XCTAssertEqual(all[0].muscles.map(\.muscle), [.quads])
+        XCTAssertEqual(existing.sessionResults().count, 1, "the squat sets landed on the existing exercise")
+    }
+
+    @MainActor
     func testDefaultMappingReusesACustomExerciseOfTheSameName() throws {
         let context = try makeContext()
         let custom = Exercise(name: "Zercher Squat", metric: true)

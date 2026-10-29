@@ -115,7 +115,16 @@ enum Seeder {
     static func applyUnits(metric: Bool, context: ModelContext) {
         let exercises = (try? context.fetch(FetchDescriptor<Exercise>())) ?? []
         for exercise in exercises {
-            guard let spec = exercise.librarySpec else { continue }
+            guard let spec = exercise.librarySpec else {
+                // A custom or imported exercise has no library step to go by. One sitting on any of
+                // the other unit's default steps moves to the same step in this unit; anything else
+                // was chosen by the lifter and stays.
+                for kg in [1.25, 2.5, 5.0, 10.0] where abs(exercise.increment - ExerciseLibrary.increment(forKg: kg, metric: !metric)) < 0.0001 {
+                    exercise.increment = ExerciseLibrary.increment(forKg: kg, metric: metric)
+                    break
+                }
+                continue
+            }
             let oldDefault = ExerciseLibrary.increment(forKg: spec.increment, metric: !metric)
             let newDefault = ExerciseLibrary.increment(forKg: spec.increment, metric: metric)
             if abs(exercise.increment - oldDefault) < 0.0001 || abs(exercise.increment - newDefault) < 0.0001 {

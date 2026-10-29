@@ -102,7 +102,9 @@ struct WorkoutImportView: View {
         Section {
             ForEach(sortedExerciseCounts(parsed), id: \.name) { entry in
                 Picker(selection: binding(for: entry.name)) {
-                    Text("New exercise “\(entry.name)”").tag(WorkoutImportService.Target.create)
+                    if !exercises.contains(where: { $0.name == entry.name }) {
+                        Text("New exercise “\(entry.name)”").tag(WorkoutImportService.Target.create)
+                    }
                     Text("Skip these sets").tag(WorkoutImportService.Target.skip)
                     Section("Your exercises") {
                         ForEach(exercises) { exercise in

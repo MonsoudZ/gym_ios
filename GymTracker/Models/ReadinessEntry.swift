@@ -95,10 +95,11 @@ final class ReadinessEntry {
     @discardableResult
     func applyHealthSleep(_ hours: Double?) -> Bool {
         guard sleepHours == nil || sleepFromHealth else { return false }
-        let newValue = hours.map { ($0 * 10).rounded() / 10 }
-        guard sleepHours != newValue || sleepFromHealth != (newValue != nil) else { return false }
-        sleepHours = newValue
-        sleepFromHealth = newValue != nil
+        // Stored as Health gives it; the field shows a tenth. Rounding first made 5.96 h read
+        // as 6.0 and pass the "< 6 h" readiness test it should fail.
+        guard sleepHours != hours || sleepFromHealth != (hours != nil) else { return false }
+        sleepHours = hours
+        sleepFromHealth = hours != nil
         return true
     }
 

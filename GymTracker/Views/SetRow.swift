@@ -160,14 +160,18 @@ struct SetRow: View {
         return weightStep
     }
 
-    /// Where + starts from empty reps: the set before, else the top of the lift's rep range.
+    /// Where + starts from empty reps: the set before, else last session's top set, else the
+    /// top of the lift's rep range (DESIGN.md §4).
     private var startingReps: Int {
-        if let exercise = self.set.exercise,
-           let previous = self.set.session?.sets(for: exercise)
+        guard let exercise = self.set.exercise else { return 8 }
+        if let previous = self.set.session?.sets(for: exercise)
             .filter({ $0.persistentModelID != self.set.persistentModelID && !$0.isWarmup && $0.reps > 0 }).last {
             return previous.reps
         }
-        return self.set.exercise?.repRangeHigh ?? 8
+        if let topSet = exercise.sessionResults().last?.sets.filter({ !$0.isWarmup && $0.reps > 0 }).max(by: { $0.weight < $1.weight }) {
+            return topSet.reps
+        }
+        return exercise.repRangeHigh
     }
 
     // MARK: RPE

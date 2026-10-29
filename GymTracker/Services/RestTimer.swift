@@ -18,6 +18,11 @@ final class RestTimer {
 
     private(set) var rest: Rest?
     private var dayName = ""
+    /// Notification and Live Activity work is chained so two quick taps (+30 s twice, or done
+    /// then +30 s) cannot finish out of order: the older task would otherwise re-add the
+    /// notification the newer one had just replaced, and two activities could be requested.
+    private var notifierTask: Task<Void, Never>?
+    private var activityTask: Task<Void, Never>?
 
     private init() {
         // A Live Activity left over from a workout the app was killed during.
@@ -30,23 +35,33 @@ final class RestTimer {
         self.rest = rest
         self.dayName = dayName
         // Rings when the phone is locked; in the foreground the bar and haptic do the job.
-        Task { await RestNotifier.schedule(endsAt: rest.endsAt, exerciseName: exerciseName) }
-        Task { await showActivity(rest) }
+        enqueueNotifier { await RestNotifier.schedule(endsAt: rest.endsAt, exerciseName: exerciseName) }
+        enqueueActivity { await self.showActivity(rest) }
     }
 
     func addTime(_ seconds: TimeInterval = 30) {
         guard var rest, !isDone else { return }
         rest.endsAt.addTimeInterval(seconds)
         self.rest = rest
-        Task { await RestNotifier.schedule(endsAt: rest.endsAt, exerciseName: rest.exerciseName) }
-        Task { await showActivity(rest) }
+        enqueueNotifier { await RestNotifier.schedule(endsAt: rest.endsAt, exerciseName: rest.exerciseName) }
+        enqueueActivity { await self.showActivity(rest) }
     }
 
     /// Dismisses the countdown, finished or not.
     func skip() {
         rest = nil
-        RestNotifier.cancel()
-        Task { await endActivity() }
+        enqueueNotifier { RestNotifier.cancel() }
+        enqueueActivity { await self.endActivity() }
+    }
+
+    private func enqueueNotifier(_ work: @escaping @MainActor () async -> Void) {
+        let previous = notifierTask
+        notifierTask = Task { await previous?.value; await work() }
+    }
+
+    private func enqueueActivity(_ work: @escaping @MainActor () async -> Void) {
+        let previous = activityTask
+        activityTask = Task { await previous?.value; await work() }
     }
 
     /// The workout is over: nothing left to rest for.
