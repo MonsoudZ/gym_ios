@@ -316,6 +316,43 @@ final class ProgressionEngineTests: XCTestCase {
         XCTAssertTrue(readiness.isLow(for: chest))
     }
 
+    // MARK: Edges the spec states
+
+    func testSleepThresholdIsStrictlyUnderSixHours() {
+        XCTAssertFalse(Readiness(sleepHours: 6.0).isLow(for: chest), "six hours is not under six")
+        XCTAssertTrue(Readiness(sleepHours: 5.9).isLow(for: chest))
+        XCTAssertFalse(Readiness(sleepHours: nil).isLow(for: chest), "no answer is not a low day")
+    }
+
+    func testSorenessCountsOnMusclesWeightedHalfOrMoreOnly() {
+        // Bench: chest 1, triceps 0.5. Library benches also carry upper back at 0.25.
+        let bench = chest + [MuscleWeight(muscle: .upperBack, weight: 0.25)]
+        XCTAssertTrue(Readiness(soreness: [.triceps: 4]).isLow(for: bench), "a 0.5 muscle is a target")
+        XCTAssertFalse(Readiness(soreness: [.upperBack: 5]).isLow(for: bench), "a 0.25 muscle is not")
+        XCTAssertFalse(Readiness(soreness: [.chest: 3]).isLow(for: bench), "soreness 3 is under the threshold")
+        XCTAssertTrue(Readiness(soreness: [.chest: 4]).isLow(for: bench))
+    }
+
+    func testStallVolumeBoundaryIsExactlyTenSets() {
+        let stalled = [session(80, reps: [7, 7, 7], daysAgo: 7), session(80, reps: [7, 7, 7], daysAgo: 4), session(80, reps: [7, 7, 7], daysAgo: 1)]
+        let atTen = ProgressionEngine.prescription(history: stalled, config: config, weeklySetsForPrimaryMuscle: 10)
+        XCTAssertEqual(atTen.stallAction, .deload, "ten sets is not under ten")
+        XCTAssertEqual(atTen.setCount, config.setCount)
+        let underTen = ProgressionEngine.prescription(history: stalled, config: config, weeklySetsForPrimaryMuscle: 9.5)
+        XCTAssertEqual(underTen.stallAction, .addSet)
+        XCTAssertEqual(underTen.setCount, config.setCount + 1)
+        XCTAssertEqual(underTen.weight, 80, "the load is left alone while a set is added")
+    }
+
+    func testReadinessChangesTheLoadButNotTheRepTargets() {
+        let p = ProgressionEngine.prescription(history: [session(80, reps: [8, 8, 8])], config: config, muscles: chest, readiness: Readiness(sleepHours: 5))
+        XCTAssertTrue(p.readinessAdjusted)
+        XCTAssertEqual(p.repRangeLow, config.repRangeLow)
+        XCTAssertEqual(p.repRangeHigh, config.repRangeHigh)
+        XCTAssertEqual(p.setCount, config.setCount)
+        XCTAssertEqual(p.rpeCap, config.rpeCap)
+    }
+
     // MARK: First session
 
     func testNoHistoryUsesStartingWeight() {
