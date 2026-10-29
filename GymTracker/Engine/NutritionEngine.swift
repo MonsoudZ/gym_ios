@@ -119,9 +119,14 @@ nonisolated enum NutritionEngine {
         series.filter { $0.date <= date }.max { $0.date < $1.date }
     }
 
-    /// Percent of bodyweight per week, from the trend over the most recent ≥7-day span.
+    /// A trend whose latest weigh-in is older than this is stale: it says nothing about the
+    /// current week, so no rate (and no weekly adjustment) comes from it.
+    static let maxTrendAgeDays = 7
+
+    /// Percent of bodyweight per week, from the trend over the most recent ≥7-day span. Nil
+    /// when the latest weigh-in is more than `maxTrendAgeDays` old.
     static func trendRatePercentPerWeek(trend: [DatedValue], asOf: Date) -> Double? {
-        guard let end = value(in: trend, atOrBefore: asOf) else { return nil }
+        guard let end = value(in: trend, atOrBefore: asOf), daysBetween(end.date, asOf) <= maxTrendAgeDays else { return nil }
         let weekBefore = Calendar.current.date(byAdding: .day, value: -7, to: end.date)!
         guard let start = value(in: trend, atOrBefore: weekBefore), end.value > 0 else { return nil }
         let days = daysBetween(start.date, end.date)

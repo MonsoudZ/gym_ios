@@ -194,6 +194,30 @@ final class ProgressionEngineTests: XCTestCase {
         XCTAssertEqual(p.previousWeight, 120)
     }
 
+    func testALighterLowReadinessDayDoesNotBecomeTheBaseline() {
+        // 100 Held; low sleep → 95 prescribed; the lifter hits 8s on the lighter load. Next
+        // session goes back to 100, not to 97.5 "up from 95".
+        let progressedLight = [session(100, reps: [7, 7, 7], daysAgo: 4), session(95, reps: [8, 8, 8], daysAgo: 1, lowReadiness: true)]
+        let p = ProgressionEngine.prescription(history: progressedLight, config: config)
+        XCTAssertEqual(p.weight, 100)
+        XCTAssertEqual(p.previousWeight, 95)
+        XCTAssertTrue(p.reason.contains("Back to"), p.reason)
+
+        let heldLight = [session(100, reps: [7, 7, 7], daysAgo: 4), session(95, reps: [7, 7, 7], daysAgo: 1, lowReadiness: true)]
+        XCTAssertEqual(ProgressionEngine.prescription(history: heldLight, config: config).weight, 100)
+
+        // A deload taken on a low day is a new baseline, not a pull-back.
+        let deloaded = [
+            session(100, reps: [7, 7, 7], daysAgo: 11), session(100, reps: [7, 7, 7], daysAgo: 8), session(100, reps: [7, 7, 7], daysAgo: 5),
+            session(85, reps: [7, 7, 7], daysAgo: 1, lowReadiness: true),
+        ]
+        XCTAssertEqual(ProgressionEngine.prescription(history: deloaded, config: config).weight, 85)
+
+        // A low day lifted at the same load (5% was under half a step) changes nothing.
+        let unchanged = [session(100, reps: [8, 8, 8], daysAgo: 4), session(100, reps: [8, 8, 8], daysAgo: 1, lowReadiness: true)]
+        XCTAssertEqual(ProgressionEngine.prescription(history: unchanged, config: config).weight, 102.5)
+    }
+
     func testProgressBreaksTheStreak() {
         let history = [session(80, reps: [7, 7, 7], daysAgo: 7), session(80, reps: [7, 7, 7], daysAgo: 4), session(80, reps: [8, 8, 8], daysAgo: 1)]
         let p = ProgressionEngine.prescription(history: history, config: config)

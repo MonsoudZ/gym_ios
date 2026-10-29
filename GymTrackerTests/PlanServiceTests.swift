@@ -109,6 +109,24 @@ final class PlanServiceTests: XCTestCase {
         XCTAssertEqual(volume[.triceps]!, 3, accuracy: 0.0001)
     }
 
+    @MainActor
+    func testAStalledLiftWhoseMuscleHasNoRecentSetsIsOfferedASetNotADeload() throws {
+        // Three Held sessions, then nothing for the muscle in the two-week window (a break):
+        // volume is zero, which is under the minimum, so step 1 of the stall check applies.
+        let context = try makeContext()
+        let bench = Exercise(spec: ExerciseLibrary.spec("Barbell Bench Press")!)   // 6–8
+        context.insert(bench)
+        for day in [1, 4, 7] {
+            let session = completedSession(bench, on: october(day, hour: 7), sets: 3, in: context)
+            for set in session.sets { set.reps = 7 }   // in range, not at the top: Held
+        }
+        context.saveOrLog()
+        let p = PlanService.prescription(for: bench, readiness: nil, weeklyVolume: [:], metric: true)
+        XCTAssertEqual(p.stallStreak, 3)
+        XCTAssertEqual(p.stallAction, .addSet)
+        XCTAssertEqual(p.weight, 80)
+    }
+
     // MARK: Session results
 
     @MainActor

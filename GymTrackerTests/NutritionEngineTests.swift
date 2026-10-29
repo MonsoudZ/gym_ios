@@ -20,6 +20,14 @@ final class NutritionEngineTests: XCTestCase {
         XCTAssertLessThan(trend[1].value, 79.0, "more than the single 0.1 step of the per-entry rule")
     }
 
+    func testTrendRateIsNilOnceTheLatestWeighInIsStale() {
+        // Weigh-ins stopped: the rate of a week long gone must not read as this week's.
+        let trend = (10...24).map { DatedValue(date: day(-$0), value: 80 - 0.1 * Double(24 - $0)) }
+        XCTAssertNil(NutritionEngine.trendRatePercentPerWeek(trend: trend, asOf: .now), "latest point is 10 days old")
+        XCTAssertNotNil(NutritionEngine.trendRatePercentPerWeek(trend: trend, asOf: day(-10)), "fresh as of the last weigh-in")
+        XCTAssertNotNil(NutritionEngine.trendRatePercentPerWeek(trend: trend, asOf: day(-3)), "seven days old is still current")
+    }
+
     func testConstantWeightGivesTdeeEqualToMeanIntake() {
         let intake = (1...14).map { DatedValue(date: day(-$0), value: 2000) }
         let trend = (0...15).map { DatedValue(date: day(-$0), value: 80) }

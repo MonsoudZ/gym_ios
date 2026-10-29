@@ -80,7 +80,9 @@ enum PlanService {
     }
 
     static func prescription(for exercise: Exercise, readiness: Readiness?, weeklyVolume: [Muscle: Double], metric: Bool) -> Prescription {
-        let primaryVolume = exercise.primaryMuscle.flatMap { weeklyVolume[$0] }
+        // A muscle with no sets in the window is at zero, not unknown: the stall check's first
+        // step (under 10 sets, add a set) must see it rather than skip straight to a deload.
+        let primaryVolume = exercise.primaryMuscle.map { weeklyVolume[$0] ?? 0 }
         return ProgressionEngine.prescription(history: exercise.sessionResults(),
                                               config: exercise.config,
                                               muscles: exercise.muscles,

@@ -263,25 +263,46 @@ nonisolated enum ProgressionEngine {
         result.lastVerdict = lastVerdict
         result.stallStreak = stall.streak
 
+        // A low-readiness day lifted lighter than the session before it, and not by enough to be
+        // a deload, was the engine's own 5% pull-back. The lift's baseline is the load before it
+        // (DESIGN.md §2.4: readiness only pulls a bad day back): the lighter day neither lowers
+        // the baseline nor earns an increment on top of it.
+        var baseline = lastWeight
+        var pulledBack = false
+        if last.readinessWasLow,
+           let lastIndex = history.lastIndex(where: { $0 == last }),
+           let before = history[..<lastIndex].last(where: { topWorkingWeight($0.sets) != nil }),
+           let beforeWeight = topWorkingWeight(before.sets),
+           lastWeight < beforeWeight,
+           !isDeloadBoundary(current: lastWeight, previous: beforeWeight, readinessWasLow: true, increment: config.increment) {
+            baseline = beforeWeight
+            pulledBack = true
+        }
+
         let stalled = stall.streak >= stallThreshold || stall.consecutiveFails >= consecutiveFailThreshold
         if stalled {
             if let weekly = weeklySetsForPrimaryMuscle, weekly < minimumWeeklySets {
                 result.stallAction = .addSet
-                result.weight = lastWeight
+                result.weight = baseline
                 result.setCount = config.setCount + 1
                 result.reason = "Stalled for \(stall.streak) sessions and weekly volume is under \(Int(minimumWeeklySets)) sets. Add a set before changing the load."
             } else if stall.streak > 0 && stall.lowReadiness * 2 > stall.streak {
                 result.stallAction = .fixRecovery
-                result.weight = lastWeight
+                result.weight = baseline
                 result.reason = "Stalled, but readiness was low for most of those sessions. Fix sleep and soreness before deloading."
             } else {
                 result.stallAction = .deload
-                result.weight = reduce(lastWeight, by: deloadFactor, increment: config.increment)
+                result.weight = reduce(baseline, by: deloadFactor, increment: config.increment)
                 result.reason = "Stalled for \(stall.streak) sessions. Deload 10% to \(formatWeight(result.weight)) and climb back."
                 if everySetAtFailure(history.suffix(max(1, stall.streak))) {
                     result.reason += " Every set was RPE 10; stop a rep or two short of failure on the way back up."
                 }
             }
+        } else if pulledBack {
+            result.weight = baseline
+            result.reason = lastVerdict == .progressed
+                ? "Hit \(high) reps on every set on last session's lighter day. Back to \(formatWeight(baseline))."
+                : "Last session was 5% lighter for low readiness. Back to \(formatWeight(baseline))."
         } else {
             switch lastVerdict {
             case .progressed:

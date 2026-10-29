@@ -54,9 +54,12 @@ enum NutritionService {
         var suggestion: Adjustment?
         // A week since the last check, or since the goal was set, so the first check is not
         // offered the moment the target becomes adaptive, against a week on another target.
+        // And only on a weigh-in logged since then: without one the rate is last week's, already
+        // acted on, and would be applied again every week the lifter kept logging food.
         let anchor = settings.lastAdjustmentDate ?? settings.createdAt
         let dueForAdjustment = NutritionEngine.daysBetween(anchor, asOf) >= 7
-        if let rate, !provisional, dueForAdjustment {
+        let weighedSince = raw.contains { $0.date > anchor }
+        if let rate, !provisional, dueForAdjustment, weighedSince {
             suggestion = NutritionEngine.weeklyAdjustment(trendRatePercentPerWeek: rate, goalRatePercentPerWeek: settings.goalRatePercentPerWeek)
         }
 

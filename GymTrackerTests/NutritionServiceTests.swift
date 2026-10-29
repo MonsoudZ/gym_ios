@@ -30,6 +30,21 @@ final class NutritionServiceTests: XCTestCase {
     }
 
     @MainActor
+    func testWeeklyCheckNeedsAWeighInSinceTheLastOne() {
+        // Food logged every day, scale untouched since the last check: the rate on offer is the
+        // one already applied, and must not be applied again.
+        let settings = UserSettings()
+        settings.createdAt = day(-40)
+        let intake = (1...30).map { IntakeEntry(date: day(-$0, hour: 12), name: "Day", kcal: 2200) }
+        let weights = (8...30).map { BodyweightEntry(date: day(-$0), kg: 80 - 0.05 * Double(30 - $0)) }
+        settings.lastAdjustmentDate = day(-7, hour: 10)
+        XCTAssertNil(NutritionService.snapshot(settings: settings, weights: weights, intake: intake).suggestedAdjustment,
+                     "no weigh-in since the check a week ago")
+        let weighedToday = weights + [BodyweightEntry(date: day(0), kg: 79)]
+        XCTAssertNotNil(NutritionService.snapshot(settings: settings, weights: weighedToday, intake: intake).suggestedAdjustment)
+    }
+
+    @MainActor
     func testWeeklyCheckWaitsAWeekFromTheGoalBeingSet() {
         let settings = UserSettings()
         let full = history(days: 20)
