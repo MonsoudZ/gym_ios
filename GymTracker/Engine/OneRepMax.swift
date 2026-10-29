@@ -7,7 +7,9 @@ nonisolated enum OneRepMax {
 
     static func epley(weight: Double, reps: Int) -> Double? {
         guard weight > 0, reps >= 1, reps <= maxTrustedReps else { return nil }
-        if reps == 1 { return weight }
+        // No special case for a single: the formula gives 1.033 × weight, and that is what the
+        // spec says. Returning the bare weight scored singles 3.3% under every other set on the
+        // same chart, so a 105 × 1 read as 105 against a 102.5 × 2's 109.3.
         return weight * (1 + Double(reps) / 30)
     }
 

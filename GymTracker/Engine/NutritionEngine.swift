@@ -136,14 +136,19 @@ nonisolated enum NutritionEngine {
 
     // MARK: Expenditure
 
-    /// TDEE ≈ mean intake − kcalPerKg × (Δtrend / days). Uses the last `windowDays` logged days.
+    /// TDEE ≈ mean intake − kcalPerKg × (Δtrend / days). Uses the last `windowDays` logged days
+    /// (today, still being logged, is not among them). The weight change runs from the trend on
+    /// the first logged day's morning to the latest trend at `asOf`, normally this morning: the
+    /// morning after the last logged day's eating, so the two terms cover the same days. With
+    /// daily weigh-ins and 14 consecutive logged days that is the spec's 14 (DESIGN.md §3.2);
+    /// gaps in logging stretch the span, which the rate accounts for.
     static func expenditure(intake: [DatedValue], trend: [DatedValue], asOf: Date) -> ExpenditureEstimate? {
         let logged = intake.filter { $0.date <= asOf }.sorted { $0.date < $1.date }.suffix(windowDays)
         guard logged.count >= minimumLoggedDays,
-              let first = logged.first, let last = logged.last,
+              let first = logged.first,
               let startTrend = value(in: trend, atOrBefore: first.date),
-              let endTrend = value(in: trend, atOrBefore: last.date) else { return nil }
-        let span = max(1, daysBetween(first.date, last.date))
+              let endTrend = value(in: trend, atOrBefore: asOf) else { return nil }
+        let span = max(1, daysBetween(startTrend.date, endTrend.date))
         let meanIntake = logged.map(\.value).reduce(0, +) / Double(logged.count)
         let delta = endTrend.value - startTrend.value
         let tdee = meanIntake - kcalPerKg * delta / Double(span)
@@ -168,7 +173,9 @@ nonisolated enum NutritionEngine {
 
     static func weeklyAdjustment(trendRatePercentPerWeek trendRate: Double, goalRatePercentPerWeek goalRate: Double) -> Adjustment {
         let diff = trendRate - goalRate   // positive: heavier than goal path
-        let magnitude = abs(diff)
+        // A hair of tolerance so a difference that is 0.15 on paper (−0.35 against −0.5) is not
+        // 0.15000000000000002 in binary and pushed out of the hold band.
+        let magnitude = abs(diff) - 1e-9
         if magnitude <= holdBandPercent { return Adjustment(kcal: 0, note: nil) }
         let step = magnitude > largeBandPercent ? largeStepKcal : smallStepKcal
         let note = magnitude > largeBandPercent ? "Trend is well off the goal. Check logging accuracy before trusting this." : nil

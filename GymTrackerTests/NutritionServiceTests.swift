@@ -30,6 +30,18 @@ final class NutritionServiceTests: XCTestCase {
     }
 
     @MainActor
+    func testNoWeeklyCheckWhileTheTargetIsProvisional() {
+        // Eleven logged days, a month old install: due by the calendar, but the target is still
+        // the formula's, so there is no adaptive rate to adjust yet.
+        let settings = UserSettings()
+        settings.createdAt = day(-30)
+        let short = history(days: 11)
+        let snap = NutritionService.snapshot(settings: settings, weights: short.weights, intake: short.intake)
+        XCTAssertTrue(snap.isProvisional)
+        XCTAssertNil(snap.suggestedAdjustment)
+    }
+
+    @MainActor
     func testWeeklyCheckNeedsAWeighInSinceTheLastOne() {
         // Food logged every day, scale untouched since the last check: the rate on offer is the
         // one already applied, and must not be applied again.

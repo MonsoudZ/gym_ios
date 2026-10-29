@@ -20,6 +20,9 @@ struct NutritionView: View {
     /// and resetting on every appearance undid the day a tapped weigh-in had just chosen.
     @State private var lastResetDay = Calendar.current.startOfDay(for: .now)
 
+    /// How far back the dashed goal reference on the bodyweight chart reaches.
+    private static let goalReferenceWeeks = 4.0
+
     private var settings: UserSettings? { settingsList.first }
     private var calendar: Calendar { Calendar.current }
     private var today: Date { calendar.startOfDay(for: .now) }
@@ -194,11 +197,14 @@ struct NutritionView: View {
                         LineMark(x: .value("Date", p.date), y: .value("Trend", display(p.value, settings)))
                             .foregroundStyle(Color.accentColor).lineStyle(StrokeStyle(lineWidth: 2))
                     }
-                    // The goal rate as a dashed reference through the latest trend point.
+                    // The goal rate as a dashed reference through the latest trend point, over the
+                    // last few weeks only. Drawn across the whole history it towered over a year of
+                    // weigh-ins, flattened the real trend, and at −1%/week over 100 weeks divided by zero.
                     if settings.goalRatePercentPerWeek != 0, let first = snap.trend.first, let last = snap.trend.last, first.date < last.date {
-                        let weeks = last.date.timeIntervalSince(first.date) / (7 * 86_400)
+                        let referenceStart = max(first.date, last.date.addingTimeInterval(-Self.goalReferenceWeeks * 7 * 86_400))
+                        let weeks = last.date.timeIntervalSince(referenceStart) / (7 * 86_400)
                         let startValue = last.value / (1 + settings.goalRatePercentPerWeek / 100 * weeks)
-                        LineMark(x: .value("Date", first.date), y: .value("Goal", display(startValue, settings)), series: .value("Series", "Goal"))
+                        LineMark(x: .value("Date", referenceStart), y: .value("Goal", display(startValue, settings)), series: .value("Series", "Goal"))
                             .foregroundStyle(.secondary).lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
                         LineMark(x: .value("Date", last.date), y: .value("Goal", display(last.value, settings)), series: .value("Series", "Goal"))
                             .foregroundStyle(.secondary).lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))

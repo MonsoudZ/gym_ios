@@ -116,7 +116,9 @@ enum PlanService {
                 return VolumeNote(muscle: muscle, sets: sets, band: .low,
                                   text: "\(muscle.displayName): \(Units.number(sets)) sets/week, under the 10-set minimum. Add a set or two to \(lift).")
             case .high:
-                let stalling = plan.filter { $0.exercise.primaryMuscle == muscle && $0.prescription.stallStreak > 0 }
+                // Stalling means the engine has called a stall (three sessions without progress, or
+                // two misses), not a single held session.
+                let stalling = plan.filter { $0.exercise.primaryMuscle == muscle && $0.prescription.stallAction != nil }
                 guard let lift = stalling.first else {
                     return VolumeNote(muscle: muscle, sets: sets, band: .high,
                                       text: "\(muscle.displayName): \(Units.number(sets)) sets/week, above 20. Fine while it keeps progressing.")

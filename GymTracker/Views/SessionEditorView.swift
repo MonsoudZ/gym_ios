@@ -8,11 +8,15 @@ struct SessionEditorView: View {
     @Bindable var session: WorkoutSession
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    /// False once this screen has been popped. A tab switch also calls onDisappear, and tidying
+    /// then threw away a set just added (reps still empty) or the whole session mid-edit.
+    @Environment(\.isPresented) private var isPresented
     @Query private var settingsList: [UserSettings]
 
     @State private var confirmDelete = false
     /// Set before the session is deleted so the body stops reading it.
     @State private var deleted = false
+    @State private var tidied = false
 
     private var metric: Bool { settingsList.first?.usesMetric ?? true }
 
@@ -24,7 +28,12 @@ struct SessionEditorView: View {
                 form
             }
         }
-        .onDisappear(perform: tidy)
+        .onChange(of: isPresented) { _, presented in
+            if !presented { tidy() }
+        }
+        .onDisappear {
+            if !isPresented { tidy() }
+        }
     }
 
     private var form: some View {
@@ -107,9 +116,11 @@ struct SessionEditorView: View {
     /// Leaving drops sets whose reps were cleared, as finishing a workout does, and removes a
     /// session left with no sets, so an empty entry never counts as a missed workout.
     private func tidy() {
-        guard !deleted else { return }
+        guard !deleted, !tidied else { return }
+        tidied = true
         for set in session.sets where set.reps <= 0 { context.delete(set) }
         if session.sets.allSatisfy({ $0.reps <= 0 }) {
+            deleted = true
             removeFromHealth()
             context.delete(session)
         }

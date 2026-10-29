@@ -303,7 +303,7 @@ final class PlanServiceTests: XCTestCase {
         mistyped.reps = 8
         context.saveOrLog()
         let fixed = ProgressionEngine.verdict(for: bench.sessionResults().last!.sets, config: bench.config)
-        XCTAssertNotEqual(typo, fixed)
+        XCTAssertEqual(fixed, .progressed, "three sets of 8 at RPE 8 on a 6–8 lift")
     }
 
     // MARK: Weekly adjustment history
@@ -402,12 +402,21 @@ final class VolumeNotesTests: XCTestCase {
         let exercise = Exercise(spec: ExerciseLibrary.spec(name)!)
         var prescription = Prescription(weight: 80, repRangeLow: 6, repRangeHigh: 8, setCount: 3, reason: "")
         prescription.stallStreak = stallStreak
+        if stallStreak >= ProgressionEngine.stallThreshold { prescription.stallAction = .deload }
         return PlannedExercise(exercise: exercise, prescription: prescription)
     }
 
     @MainActor
+    func testHighVolumeWithOneHeldSessionIsNotAStall() {
+        // Two sessions without progress is not yet a stall, so the note is an observation only.
+        let notes = PlanService.volumeNotes(plan: [planned("Lateral Raise", stallStreak: 2)], volume: [.sideDelt: 24])
+        XCTAssertEqual(notes.count, 1)
+        XCTAssertFalse(notes[0].text.contains("Drop"), notes[0].text)
+    }
+
+    @MainActor
     func testLowVolumeSuggestsASetHighAndStallingSuggestsDroppingTwo() {
-        let plan = [planned("Barbell Bench Press"), planned("Lateral Raise", stallStreak: 2), planned("Barbell Curl")]
+        let plan = [planned("Barbell Bench Press"), planned("Lateral Raise", stallStreak: 3), planned("Barbell Curl")]
         let volume: [Muscle: Double] = [.chest: 6, .sideDelt: 24, .biceps: 14]
         let notes = PlanService.volumeNotes(plan: plan, volume: volume)
         XCTAssertEqual(notes.map(\.muscle), [.chest, .sideDelt], "biceps are in range and say nothing")

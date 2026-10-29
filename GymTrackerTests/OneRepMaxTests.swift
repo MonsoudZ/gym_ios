@@ -6,8 +6,9 @@ final class OneRepMaxTests: XCTestCase {
         XCTAssertEqual(OneRepMax.epley(weight: 100, reps: 5)!, 116.67, accuracy: 0.01)
     }
 
-    func testSingleRepIsTheWeight() {
-        XCTAssertEqual(OneRepMax.epley(weight: 140, reps: 1), 140)
+    func testSingleRepFollowsTheFormulaToo() {
+        // 140 × (1 + 1/30) = 144.67, not the bare 140 the old special case returned.
+        XCTAssertEqual(OneRepMax.epley(weight: 140, reps: 1)!, 144.67, accuracy: 0.01)
     }
 
     func testHighRepSetsAreNotTrusted() {

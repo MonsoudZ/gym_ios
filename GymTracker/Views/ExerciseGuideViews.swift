@@ -23,7 +23,8 @@ struct ExerciseDetailView: View {
     @State private var tab: Tab?
 
     private var metric: Bool { settingsList.first?.usesMetric ?? false }
-    private var guide: ExerciseGuide? { ExerciseGuides.guide(for: exercise.name) }
+    /// By the library name the exercise was created from, so a renamed lift keeps its guide.
+    private var guide: ExerciseGuide? { ExerciseGuides.guide(for: exercise.librarySpecName ?? exercise.name) }
 
     var body: some View {
         let selected = tab ?? initialTab
