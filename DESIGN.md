@@ -407,7 +407,10 @@ correction fixes everything downstream.
 3. ~~Any existing data to import (Strong, Hevy, MacroFactor export)?~~ Strong and Hevy workout
    exports import from Settings (§4), as do this app's own weigh-in and food exports (§6).
    MacroFactor's export still does not.
-4. Is a food database needed in v1, or are saved meals plus manual entry enough to start?
+4. ~~Is a food database needed in v1, or are saved meals plus manual entry enough to start?~~
+   Answered by building all three: manual entry, saved meals, and Open Food Facts by name search
+   or barcode scan (free, open, no account), with recently used foods kept locally. No bundled
+   database.
 
 ---
 
