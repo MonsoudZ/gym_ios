@@ -235,12 +235,13 @@ private struct SettingsForm: View {
             Section {
                 Button("Export to CSV", systemImage: "square.and.arrow.up") { export() }
                 NavigationLink("Import from Strong or Hevy") { WorkoutImportView() }
+                NavigationLink("Import weigh-ins or food") { NutritionImportView() }
                 Button("Load demo data (8 weeks)") { confirmDemo = true }
                 Button("Reset everything", role: .destructive) { confirmReset = true }
             } header: {
                 Text("Data")
             } footer: {
-                Text("Export writes workouts, weigh-ins, food, readiness and weekly checks as CSV files. The workouts file imports back into this app, so it is also a backup.")
+                Text("Export writes workouts, weigh-ins, food, readiness and weekly checks as CSV files. The workouts, weigh-in and food files import back into this app, so the export is also a backup.")
             }
         }
         .confirmationDialog("Add eight weeks of made-up workouts, weigh-ins and food? Days you have already logged are kept as they are.",

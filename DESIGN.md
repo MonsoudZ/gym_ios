@@ -390,6 +390,9 @@ correction fixes everything downstream.
   uses Hevy's column layout with ISO 8601 times and kilograms, so the app's own importer reads
   it back on a new phone with every set, warm-up flag, RPE and note; brought back onto the same
   phone it adds nothing (a workout with the same start time and name is the same workout).
+  The weigh-in and food files import back too (Settings → Data → Import weigh-ins or food): a
+  day that already has a weigh-in keeps it, and a food entry already there at the same minute
+  with the same name and calories is not added again.
 
 ---
 
@@ -398,7 +401,8 @@ correction fixes everything downstream.
 1. ~~Default units: kg or lb?~~ Pounds by default; asked on first launch.
 2. ~~Starting split and goal.~~ Asked on first launch; Upper / Lower and Maintain by default.
 3. ~~Any existing data to import (Strong, Hevy, MacroFactor export)?~~ Strong and Hevy workout
-   exports import from Settings (§4). Nutrition history (MacroFactor) still does not.
+   exports import from Settings (§4), as do this app's own weigh-in and food exports (§6).
+   MacroFactor's export still does not.
 4. Is a food database needed in v1, or are saved meals plus manual entry enough to start?
 
 ---
