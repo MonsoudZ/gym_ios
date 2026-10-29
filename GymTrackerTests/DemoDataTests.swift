@@ -38,6 +38,15 @@ final class DemoDataTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<SetEntry>()), sets)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<BodyweightEntry>()), weights)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<IntakeEntry>()), intake)
+
+        // Loaded again on a later day: the history stays anchored on its first load, so every
+        // key is the same and nothing is written. Anchoring on "today" wrote all 32 sessions again.
+        let later = Calendar.current.date(byAdding: .day, value: 3, to: .now)!
+        DemoData.load(context: context, exercises: exercises, settings: settings, now: later)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<WorkoutSession>()), sessions)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<SetEntry>()), sets)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<BodyweightEntry>()), weights)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<IntakeEntry>()), intake)
     }
 
     @MainActor

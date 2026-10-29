@@ -20,16 +20,23 @@ enum DemoData {
     /// Writes the history around whatever is already there: a day with a weigh-in or any food
     /// keeps it, a demo session already present is not written again, and the goal and profile
     /// are only set on an install that has nothing logged yet and still has the default goal.
-    static func load(context: ModelContext, exercises: [Exercise], settings: UserSettings) {
+    ///
+    /// The history is anchored on the day it was first loaded: a second load, on any later
+    /// day, rebuilds the same dates and keys and so adds nothing. Anchoring on "today" each
+    /// time shifted every key and wrote all 32 sessions again.
+    static func load(context: ModelContext, exercises: [Exercise], settings: UserSettings, now: Date = .now) {
         var rng = SplitMix64(state: 42)
         let cal = Calendar.current
-        let today = cal.startOfDay(for: .now)
-        let start = cal.date(byAdding: .day, value: -56, to: today)!
+        let today = cal.startOfDay(for: now)
 
         let weightDays = Set(((try? context.fetch(FetchDescriptor<BodyweightEntry>())) ?? []).map(\.date))
         let intakeDays = Set(((try? context.fetch(FetchDescriptor<IntakeEntry>())) ?? []).map { cal.startOfDay(for: $0.date) })
         let existingSessions = (try? context.fetch(FetchDescriptor<WorkoutSession>())) ?? []
-        let demoKeys = Set(existingSessions.compactMap(\.importKey).filter { $0.hasPrefix(importKeyPrefix) })
+        let demoSessions = existingSessions.filter { $0.importKey?.hasPrefix(importKeyPrefix) == true }
+        let demoKeys = Set(demoSessions.compactMap(\.importKey))
+        // The first demo session is the evening of the history's first day.
+        let anchor = demoSessions.map(\.date).min().map { cal.startOfDay(for: $0) }
+        let start = anchor ?? cal.date(byAdding: .day, value: -56, to: today)!
         let hasHistory = !weightDays.isEmpty || !intakeDays.isEmpty || existingSessions.contains(where: \.isCompleted)
 
         // History is written on the Upper / Lower rotation; the user's chosen split stays active.
@@ -83,7 +90,7 @@ enum DemoData {
         for week in 0..<8 {
             for offset in [0, 1, 3, 4] {
                 let date = cal.date(byAdding: .day, value: week * 7 + offset, to: start)!.addingTimeInterval(18 * 3600)
-                guard date < .now else { continue }
+                guard date < now else { continue }
                 let day = template.days[dayIndex % template.days.count]
                 dayIndex += 1
                 sessionCount += 1
