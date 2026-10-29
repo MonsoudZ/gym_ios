@@ -64,6 +64,16 @@ struct OnboardingView: View {
                 } footer: {
                     Text("Every split hits each muscle at least twice a week. You can edit the days and exercises, or build your own, later.")
                 }
+                Section {
+                    Picker("Rep ranges", selection: $settings.repStyle) {
+                        ForEach(RepStyle.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.inline).labelsHidden()
+                } header: {
+                    Text("How you train")
+                } footer: {
+                    Text(settings.repStyle.summary + " Changeable in Settings, and per exercise.")
+                }
             }
             .navigationTitle("Welcome")
             .navigationBarTitleDisplayMode(.inline)
@@ -91,6 +101,7 @@ struct OnboardingView: View {
 
     private func finish() {
         Seeder.applyUnits(metric: settings.usesMetric, context: context)
+        Seeder.applyRepStyle(from: .balanced, to: settings.repStyle, context: context)
         settings.hasCompletedOnboarding = true
         context.saveOrLog()
         dismiss()

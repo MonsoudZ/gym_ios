@@ -64,6 +64,7 @@ enum WorkoutImportService {
         let existing = Set(((try? context.fetch(FetchDescriptor<WorkoutSession>())) ?? []).map { sameWorkoutKey(date: $0.date, name: $0.templateDayName) })
         var byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var created: [String: Exercise] = [:]
+        let repStyle = (try? context.fetch(FetchDescriptor<UserSettings>()).first)?.repStyle ?? .balanced
 
         func exercise(for name: String) -> Exercise? {
             switch mapping[name] ?? .skip {
@@ -74,7 +75,7 @@ enum WorkoutImportService {
                 // Exercise.name is unique, so inserting a second one would overwrite the first
                 // (muscles, rep range and a new id). Use what is there.
                 if let existing = exercises.first(where: { $0.name == name }) { return existing }
-                let exercise = Exercise(name: name, metric: metric)
+                let exercise = Exercise(name: name, metric: metric, repStyle: repStyle)
                 context.insert(exercise)
                 created[name] = exercise
                 byID[exercise.id] = exercise

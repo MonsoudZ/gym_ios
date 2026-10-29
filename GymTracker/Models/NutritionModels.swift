@@ -49,6 +49,15 @@ final class IntakeEntry {
 @Model
 final class UserSettings {
     var usesMetric: Bool
+    /// The rep ranges the library's exercises run on (RepStyle). Changing it re-maps every
+    /// exercise still on its default range; one the lifter edited is kept. Stored as the raw
+    /// string: an enum attribute with a default crashes SwiftData's migration of an existing
+    /// store (a dynamic-cast failure on the old row), a plain string with a default does not.
+    var repStyleRaw: String = RepStyle.balanced.rawValue
+    var repStyle: RepStyle {
+        get { RepStyle(rawValue: repStyleRaw) ?? .balanced }
+        set { repStyleRaw = newValue.rawValue }
+    }
     var goal: Goal
     var goalRatePercentPerWeek: Double
     var proteinPerKgOverride: Double?

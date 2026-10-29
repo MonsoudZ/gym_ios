@@ -36,13 +36,14 @@ final class Exercise {
         restSeconds = RestRule.defaultSeconds(repRangeHigh: spec.repRangeHigh)
     }
 
-    /// A blank custom exercise. Defaults: 3 × 8–12, one small plate step.
-    init(name: String, metric: Bool) {
+    /// A blank custom exercise. Defaults: 3 sets in the style's range (8–12 balanced, 4–6
+    /// heavy), one small plate step.
+    init(name: String, metric: Bool, repStyle: RepStyle = .balanced) {
         id = UUID()
         self.name = name
         muscles = []
-        repRangeLow = 8
-        repRangeHigh = 12
+        repRangeLow = repStyle.customDefault.low
+        repRangeHigh = repStyle.customDefault.high
         increment = ExerciseLibrary.increment(forKg: 2.5, metric: metric)
         setCount = 3
         rpeCap = 9

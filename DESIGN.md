@@ -275,7 +275,10 @@ Adjustments are capped at 150 kcal per week so one odd week cannot swing the pla
 
 **First launch**
 
-- One sheet: units, goal (with the rate and protein each implies) and starting split. Everything
+- One sheet: units, goal (with the rate and protein each implies), starting split, and how you
+  train: balanced rep ranges as the library ships them, or heavy (`RepStyle`: barbell lifts 3–5,
+  compounds 4–6, machines 6–8, small isolation 8–12). Changing the style later re-maps every
+  exercise still on its default range and leaves one the lifter edited alone. Everything
   on it is also in Settings. Existing installs skip it. There is no demo history and no reset:
   the app shows what the lifter has done, from the first workout on (§2.3, "first session").
 

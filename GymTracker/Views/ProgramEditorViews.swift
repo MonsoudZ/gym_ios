@@ -264,7 +264,8 @@ struct ExercisePickerView: View {
         List {
             Section {
                 Button("New exercise…", systemImage: "plus.circle") {
-                    newExercise = Exercise(name: query.trimmingCharacters(in: .whitespaces), metric: metric)
+                    newExercise = Exercise(name: query.trimmingCharacters(in: .whitespaces), metric: metric,
+                                           repStyle: settingsList.first?.repStyle ?? .balanced)
                 }
             }
             ForEach(grouped, id: \.title) { group in

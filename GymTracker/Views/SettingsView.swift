@@ -100,6 +100,21 @@ private struct SettingsForm: View {
                 Text("Weights are stored in kilograms and shown in your unit. Lift increments follow the unit: 5 lb and 10 lb plates, or 2.5 kg and 5 kg.")
             }
 
+            Section {
+                Picker("Rep ranges", selection: $settings.repStyle) {
+                    ForEach(RepStyle.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+                .onChange(of: settings.repStyle) { old, new in
+                    Seeder.applyRepStyle(from: old, to: new, context: context)
+                }
+            } header: {
+                Text("Rep ranges")
+            } footer: {
+                Text(settings.repStyle.summary + " Any exercise's range can still be set on its own from a program day; a range you set yourself is kept when this changes.")
+            }
+
             Section("Goal") {
                 Picker("Goal", selection: $settings.goal) {
                     ForEach(Goal.allCases, id: \.self) { Text($0.label).tag($0) }

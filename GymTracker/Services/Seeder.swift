@@ -109,6 +109,27 @@ enum Seeder {
         context.saveOrLog()
     }
 
+    /// Re-map each library exercise's rep range from one style to another. Only a range still on
+    /// the library's default, or on the old style's, is touched: a range the lifter set (5–8 on
+    /// a curl) is kept. The rest between sets follows when it was the range's default.
+    static func applyRepStyle(from old: RepStyle, to new: RepStyle, context: ModelContext) {
+        let exercises = (try? context.fetch(FetchDescriptor<Exercise>())) ?? []
+        for exercise in exercises {
+            guard let spec = exercise.librarySpec else { continue }
+            let current = (low: exercise.repRangeLow, high: exercise.repRangeHigh)
+            let base = (low: spec.repRangeLow, high: spec.repRangeHigh)
+            let before = old.range(forDefault: base.low, high: base.high)
+            let after = new.range(forDefault: base.low, high: base.high)
+            guard current == base || current == before else { continue }
+            if exercise.restSeconds == RestRule.defaultSeconds(repRangeHigh: current.high) {
+                exercise.restSeconds = RestRule.defaultSeconds(repRangeHigh: after.high)
+            }
+            exercise.repRangeLow = after.low
+            exercise.repRangeHigh = after.high
+        }
+        context.saveOrLog()
+    }
+
     /// Re-map each library exercise's increment to the plate step for the chosen unit. Only an
     /// increment still on the other unit's default step is touched: a step the lifter set
     /// themselves (1.25 kg on a curl) is kept.
