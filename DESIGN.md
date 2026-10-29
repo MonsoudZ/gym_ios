@@ -385,7 +385,11 @@ correction fixes everything downstream.
 - Swift Charts for all trend views.
 - HealthKit, each opt-in in Settings: read HRV and resting heart rate, sleep and bodyweight;
   write finished workouts as strength training (deleted with the session).
-- No server. No account. Export to CSV from day one.
+- No server. No account. Export to CSV from Settings → Data: workouts, weigh-ins, food,
+  readiness and weekly checks as separate files, handed to the share sheet. The workouts file
+  uses Hevy's column layout with ISO 8601 times and kilograms, so the app's own importer reads
+  it back on a new phone with every set, warm-up flag, RPE and note; brought back onto the same
+  phone it adds nothing (a workout with the same start time and name is the same workout).
 
 ---
 

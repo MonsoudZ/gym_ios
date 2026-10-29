@@ -30,6 +30,11 @@ enum WorkoutImportService {
         return Set(((try? context.fetch(descriptor)) ?? []).compactMap(\.importKey))
     }
 
+    /// Start time to the millisecond (what an ISO export keeps) plus the name.
+    nonisolated static func sameWorkoutKey(date: Date, name: String) -> String {
+        "\(Int((date.timeIntervalSince1970 * 1000).rounded()))|\(name)"
+    }
+
     /// The library exercise (or an existing custom one of the same name) each source name maps
     /// to by default; names with no confident match are created as custom exercises.
     static func defaultMapping(for names: [String], exercises: [Exercise]) -> [String: Target] {
@@ -54,6 +59,9 @@ enum WorkoutImportService {
                       context: ModelContext) -> Outcome {
         var outcome = Outcome()
         let done = importedKeys(context: context)
+        // A workout that already exists here with the same start and name is the same workout:
+        // the app's own export brought back onto the phone it came from must not double history.
+        let existing = Set(((try? context.fetch(FetchDescriptor<WorkoutSession>())) ?? []).map { sameWorkoutKey(date: $0.date, name: $0.templateDayName) })
         var byID = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var created: [String: Exercise] = [:]
 
@@ -76,7 +84,10 @@ enum WorkoutImportService {
         }
 
         for workout in file.workouts {
-            if done.contains(workout.key) { outcome.sessionsSkipped += 1; continue }
+            if done.contains(workout.key) || existing.contains(sameWorkoutKey(date: workout.date, name: workout.name)) {
+                outcome.sessionsSkipped += 1
+                continue
+            }
             var order: [UUID: Int] = [:]
             var setNumbers: [UUID: Int] = [:]
             var sets: [SetEntry] = []

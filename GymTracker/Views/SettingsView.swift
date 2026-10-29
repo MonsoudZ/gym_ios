@@ -31,6 +31,8 @@ private struct SettingsForm: View {
     var programs: [Program]
     @Binding var confirmReset: Bool
     @State private var confirmDemo = false
+    @State private var exportFiles: ExportFiles?
+    @State private var exportError: String?
     @Query(sort: \BodyweightEntry.date) private var weights: [BodyweightEntry]
     /// The trend weight, as the Nutrition tab uses it, so the protein grams here match.
     private var currentWeightKg: Double {
@@ -230,10 +232,15 @@ private struct SettingsForm: View {
             .onChange(of: settings.bodyweightFromHealthEnabled) { _, on in healthToggled(on) { settings.bodyweightFromHealthEnabled = false } }
             .onChange(of: settings.saveWorkoutsToHealthEnabled) { _, on in healthToggled(on) { settings.saveWorkoutsToHealthEnabled = false } }
 
-            Section("Data") {
+            Section {
+                Button("Export to CSV", systemImage: "square.and.arrow.up") { export() }
                 NavigationLink("Import from Strong or Hevy") { WorkoutImportView() }
                 Button("Load demo data (8 weeks)") { confirmDemo = true }
                 Button("Reset everything", role: .destructive) { confirmReset = true }
+            } header: {
+                Text("Data")
+            } footer: {
+                Text("Export writes workouts, weigh-ins, food, readiness and weekly checks as CSV files. The workouts file imports back into this app, so it is also a backup.")
             }
         }
         .confirmationDialog("Add eight weeks of made-up workouts, weigh-ins and food? Days you have already logged are kept as they are.",
@@ -244,7 +251,41 @@ private struct SettingsForm: View {
         .confirmationDialog("Delete all workouts, weights and food?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Delete everything", role: .destructive) { Seeder.resetAll(context: context) }
         }
+        .sheet(item: $exportFiles) { files in
+            ShareSheet(items: files.urls)
+        }
+        .alert("Export failed", isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportError ?? "")
+        }
     }
+
+    private func export() {
+        do {
+            let urls = try CSVExport.writeFiles(context: context)
+            guard !urls.isEmpty else { exportError = "There is nothing logged yet."; return }
+            exportFiles = ExportFiles(urls: urls)
+        } catch {
+            exportError = error.localizedDescription
+        }
+    }
+}
+
+private struct ExportFiles: Identifiable {
+    var urls: [URL]
+    var id: String { urls.map(\.path).joined() }
+}
+
+/// The system share sheet, for handing the export files to Files, AirDrop or mail.
+private struct ShareSheet: UIViewControllerRepresentable {
+    var items: [URL]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 /// A number typed in place with its unit beside it, clamped to `range` when editing ends.
