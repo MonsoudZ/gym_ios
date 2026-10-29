@@ -28,6 +28,8 @@ final class WorkoutSession {
     var importKey: String?
     /// How the session went, in the lifter's words. Imports carry Strong's and Hevy's workout notes.
     var notes: String?
+    /// Why a lift was missed, by exercise id (DESIGN.md §2.3). Set after the workout or in the editor.
+    var missReasonsByExerciseID: [String: String] = [:]
     @Relationship(deleteRule: .cascade, inverse: \SetEntry.session) var sets: [SetEntry] = []
 
     init(date: Date = .now, templateDayName: String, sleepHours: Double? = nil, soreness: [Muscle: Int] = [:]) {
@@ -37,6 +39,14 @@ final class WorkoutSession {
         self.sleepHours = sleepHours
         sorenessByMuscle = Dictionary(uniqueKeysWithValues: soreness.map { ($0.key.rawValue, $0.value) })
         isCompleted = false
+    }
+
+    func missReason(for exercise: Exercise) -> MissReason? {
+        missReasonsByExerciseID[exercise.id.uuidString].flatMap(MissReason.init(rawValue:))
+    }
+
+    func setMissReason(_ reason: MissReason?, for exercise: Exercise) {
+        missReasonsByExerciseID[exercise.id.uuidString] = reason?.rawValue
     }
 
     /// Copies the day's check-in onto the session, so history keeps what the lifter reported.

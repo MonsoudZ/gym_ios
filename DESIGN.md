@@ -95,6 +95,15 @@ there the line is the cut load itself: only a session lighter than the readiness
 made it counts as a deload. A session holding only warm-ups (the lift was skipped after warming
 up) has no verdict and is skipped over; it never reads as "no history".
 
+**Missed lifts and reasons.** Finishing a workout in which a lift was *Missed* asks why, per
+lift: felt weak, short on sleep, technique, sick or injured, out of time, equipment busy, or no
+reason. The reason is shown with the miss in history and can be changed from the session
+editor. Sick or injured, out of time and equipment busy say nothing about the load, so such a
+session is left out of that lift's stall count and the next prescription carries on from the
+session before it (the Today card says so). Felt weak, short on sleep, technique and no reason
+count like any miss. A reason left on a session later corrected to Held or Progressed excuses
+nothing.
+
 RPE is required on working sets because a missing RPE counts as 10: a set that hit the top
 of the range with no RPE cannot earn *Progressed*. Finishing a workout with such sets asks
 first, and the next prescription says which sets were affected.

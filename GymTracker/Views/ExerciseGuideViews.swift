@@ -176,6 +176,7 @@ struct ExerciseDetailView: View {
                                 .map { "\(Units.weight($0.weight, metric: metric)) × \($0.reps)\($0.rpe.map { " @\(Units.number($0))" } ?? "")" }
                                 .joined(separator: "  ·  "))
                             .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            if let note = annotations[result.date] { MissReasonLabel(annotation: note) }
                         }
                     }
                 }

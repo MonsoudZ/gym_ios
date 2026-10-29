@@ -261,10 +261,11 @@ struct ExerciseProgressView: View {
                                 .map { "\(Units.weight($0.weight, metric: metric)) × \($0.reps)\($0.rpe.map { " @\(Units.number($0))" } ?? "")" }
                                 .joined(separator: "  ·  "))
                             .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            MissReasonLabel(annotation: note)
                             if let deload = note.deload {
                                 Label(deloadText(deload), systemImage: StallAction.deload.systemImage)
                                     .font(.caption.weight(.medium)).foregroundStyle(.orange)
-                            } else if note.stallStreak >= ProgressionEngine.stallThreshold {
+                            } else if note.stallStreak >= ProgressionEngine.stallThreshold, !note.isExcused {
                                 Label("Stalled \(note.stallStreak) sessions", systemImage: "exclamationmark.triangle")
                                     .font(.caption.weight(.medium)).foregroundStyle(.orange)
                             }

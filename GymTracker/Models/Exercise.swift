@@ -79,7 +79,8 @@ final class Exercise {
                     .map { LoggedSet(weight: $0.weight, reps: $0.reps, rpe: $0.rpe, isWarmup: $0.isWarmup) }
                 return SessionResult(date: entry.session.date, sets: logged,
                                      readinessWasLow: entry.session.readiness.isLow(for: muscles),
-                                     sessionID: entry.session.id)
+                                     sessionID: entry.session.id,
+                                     missReason: entry.session.missReason(for: self))
             }
     }
 

@@ -316,6 +316,67 @@ final class ProgressionEngineTests: XCTestCase {
         XCTAssertTrue(readiness.isLow(for: chest))
     }
 
+    // MARK: Missed with a reason
+
+    private func missed(_ weight: Double, daysAgo: Int, reason: MissReason?) -> SessionResult {
+        var s = session(weight, reps: [5, 5, 5], rpe: 10, daysAgo: daysAgo)
+        s.missReason = reason
+        return s
+    }
+
+    func testAnExcusedMissIsLeftOutOfTheStallCount() {
+        // Held, held, then missed because the squat rack was taken: still two, not three, and
+        // not a consecutive-fail stall either.
+        let history = [session(80, reps: [7, 7, 7], daysAgo: 8), session(80, reps: [7, 7, 7], daysAgo: 4),
+                       missed(80, daysAgo: 1, reason: .equipmentBusy)]
+        let p = ProgressionEngine.prescription(history: history, config: config)
+        XCTAssertEqual(p.stallStreak, 2)
+        XCTAssertNil(p.stallAction)
+        XCTAssertEqual(p.weight, 80, "carries on from the session before the excused miss")
+        XCTAssertEqual(p.lastVerdict, .held)
+        XCTAssertTrue(p.reason.hasPrefix("Last session's miss (equipment busy) doesn't count."), p.reason)
+    }
+
+    func testAnUnexcusedMissCountsLikeAnyMiss() {
+        let history = [session(80, reps: [7, 7, 7], daysAgo: 8), session(80, reps: [7, 7, 7], daysAgo: 4),
+                       missed(80, daysAgo: 1, reason: .feltWeak)]
+        let p = ProgressionEngine.prescription(history: history, config: config, weeklySetsForPrimaryMuscle: 12)
+        XCTAssertEqual(p.stallStreak, 3)
+        XCTAssertEqual(p.stallAction, .deload)
+        let noReason = [history[0], history[1], missed(80, daysAgo: 1, reason: nil)]
+        XCTAssertEqual(ProgressionEngine.prescription(history: noReason, config: config, weeklySetsForPrimaryMuscle: 12).stallStreak, 3)
+    }
+
+    func testTwoExcusedMissesInARowDoNotMakeAFailStall() {
+        let history = [session(80, reps: [8, 8, 8], daysAgo: 8), missed(82.5, daysAgo: 4, reason: .outOfTime),
+                       missed(82.5, daysAgo: 1, reason: .sickOrInjured)]
+        let p = ProgressionEngine.prescription(history: history, config: config)
+        XCTAssertNil(p.stallAction)
+        XCTAssertEqual(p.weight, 82.5, "the increment earned before the two excused sessions still stands")
+        XCTAssertEqual(p.lastVerdict, .progressed)
+    }
+
+    func testAnnotationShowsTheMissWithItsReasonAndKeepsTheStreak() {
+        let history = [session(80, reps: [7, 7, 7], daysAgo: 8), missed(80, daysAgo: 4, reason: .outOfTime),
+                       missed(80, daysAgo: 1, reason: .feltWeak)]
+        let notes = ProgressionEngine.annotate(history: history, config: config)
+        XCTAssertEqual(notes.map(\.verdict), [.held, .failed, .failed])
+        XCTAssertEqual(notes.map(\.stallStreak), [1, 1, 2], "the excused miss neither adds nor resets")
+        XCTAssertEqual(notes.map(\.isExcused), [false, true, false])
+        XCTAssertEqual(notes[1].missReason, .outOfTime)
+        XCTAssertEqual(notes[2].missReason, .feltWeak)
+    }
+
+    func testAReasonOnACorrectedSessionExcusesNothing() {
+        // The miss was corrected to a Held session in the editor; the stale reason must not hide it.
+        var corrected = session(80, reps: [7, 7, 7], daysAgo: 1)
+        corrected.missReason = .outOfTime
+        XCTAssertFalse(ProgressionEngine.isExcused(corrected, config: config))
+        let p = ProgressionEngine.prescription(history: [session(80, reps: [7, 7, 7], daysAgo: 4), corrected], config: config)
+        XCTAssertEqual(p.stallStreak, 2)
+        XCTAssertFalse(p.reason.contains("doesn't count"))
+    }
+
     // MARK: Edges the spec states
 
     func testSleepThresholdIsStrictlyUnderSixHours() {

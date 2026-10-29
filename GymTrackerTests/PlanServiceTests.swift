@@ -127,6 +127,29 @@ final class PlanServiceTests: XCTestCase {
         XCTAssertEqual(p.weight, 80)
     }
 
+    @MainActor
+    func testAMissReasonIsKeptPerLiftAndReachesTheEngine() throws {
+        let context = try makeContext()
+        let bench = Exercise(spec: ExerciseLibrary.spec("Barbell Bench Press")!)
+        let row = Exercise(spec: ExerciseLibrary.spec("Barbell Row")!)
+        context.insert(bench)
+        context.insert(row)
+        let session = completedSession(bench, on: october(12, hour: 7), sets: 3, in: context)
+        for set in session.sets { set.reps = 4 }   // a miss on the 6–8 lift
+        session.setMissReason(.outOfTime, for: bench)
+        try context.save()
+
+        XCTAssertEqual(session.missReason(for: bench), .outOfTime)
+        XCTAssertNil(session.missReason(for: row), "the reason is per lift")
+        XCTAssertEqual(bench.sessionResults().last?.missReason, .outOfTime)
+        XCTAssertEqual(PlanService.prescription(for: bench, readiness: nil, weeklyVolume: [:], metric: true).stallStreak, 0,
+                       "an excused miss leaves no stall behind")
+
+        session.setMissReason(nil, for: bench)
+        XCTAssertNil(bench.sessionResults().last?.missReason)
+        XCTAssertEqual(PlanService.prescription(for: bench, readiness: nil, weeklyVolume: [:], metric: true).stallStreak, 1)
+    }
+
     // MARK: Session results
 
     @MainActor

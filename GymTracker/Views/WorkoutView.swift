@@ -17,6 +17,8 @@ struct WorkoutView: View {
     @State private var showAddExercise = false
     @State private var swapping: Exercise?
     @State private var showingGuide: Exercise?
+    /// Lifts missed in this workout, asked about once it is finished.
+    @State private var missedLifts: [Exercise] = []
 
     private var metric: Bool { settingsList.first?.usesMetric ?? true }
 
@@ -132,6 +134,10 @@ struct WorkoutView: View {
             SessionExercisePicker(session: session, replacing: nil, metric: metric)
         }
         .sheet(item: $showingGuide) { ExerciseGuideSheet(exercise: $0) }
+        .sheet(isPresented: Binding(get: { !missedLifts.isEmpty }, set: { if !$0 { missedLifts = [] } }),
+               onDismiss: { dismiss() }) {
+            MissReasonsSheet(session: session, missed: missedLifts)
+        }
         .sheet(item: $swapping) { old in
             SessionExercisePicker(session: session, replacing: old, metric: metric)
         }
@@ -206,7 +212,13 @@ struct WorkoutView: View {
                 context.saveOrLog()
             }
         }
-        dismiss()
+        // A missed lift gets asked about before the screen goes; the sheet dismisses it.
+        let missed = hasLoggedSets ? session.orderedExercises.filter { exercise in
+            let sets = session.sets(for: exercise).filter { $0.reps > 0 }
+            return ProgressionEngine.verdict(for: sets.map { LoggedSet(weight: $0.weight, reps: $0.reps, rpe: $0.rpe, isWarmup: $0.isWarmup) },
+                                             config: exercise.config) == .failed
+        } : []
+        if missed.isEmpty { dismiss() } else { missedLifts = missed }
     }
 }
 

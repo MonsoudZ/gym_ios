@@ -50,6 +50,7 @@ struct SessionEditorView: View {
             }
             ForEach(session.orderedExercises, id: \.persistentModelID) { exercise in
                 let exerciseSets = session.sets(for: exercise)
+                let verdict = verdict(for: exerciseSets, exercise: exercise)
                 Section {
                     ForEach(Array(exerciseSets.enumerated()), id: \.element.persistentModelID) { index, set in
                         let workingNumber = exerciseSets.prefix(index + 1).filter { !$0.isWarmup }.count
@@ -71,11 +72,15 @@ struct SessionEditorView: View {
                     }
                     .font(.subheadline)
                     .buttonStyle(.borderless)
+                    if verdict == .failed {
+                        MissReasonPicker(reason: Binding(get: { session.missReason(for: exercise) },
+                                                         set: { session.setMissReason($0, for: exercise) }))
+                    }
                 } header: {
                     HStack {
                         Text(exercise.name)
                         Spacer()
-                        VerdictBadge(verdict: verdict(for: exerciseSets, exercise: exercise))
+                        VerdictBadge(verdict: verdict)
                             .textCase(nil)
                     }
                 } footer: {

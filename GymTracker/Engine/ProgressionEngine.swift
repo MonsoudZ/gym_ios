@@ -16,6 +16,31 @@ nonisolated struct LoggedSet: Hashable, Sendable {
     var isWarmup: Bool = false
 }
 
+/// Why a lift was missed, given by the lifter after the workout (DESIGN.md §2.3). Some reasons
+/// say nothing about strength, and a miss for one of those does not count against the lift.
+nonisolated enum MissReason: String, Codable, CaseIterable, Sendable {
+    case feltWeak, shortOnSleep, technique, sickOrInjured, outOfTime, equipmentBusy
+
+    var label: String {
+        switch self {
+        case .feltWeak: "Felt weak"
+        case .shortOnSleep: "Short on sleep"
+        case .technique: "Technique"
+        case .sickOrInjured: "Sick or injured"
+        case .outOfTime: "Out of time"
+        case .equipmentBusy: "Equipment busy"
+        }
+    }
+
+    /// The miss was not about the load: it is left out of the stall count entirely.
+    var excusesTheMiss: Bool {
+        switch self {
+        case .sickOrInjured, .outOfTime, .equipmentBusy: true
+        case .feltWeak, .shortOnSleep, .technique: false
+        }
+    }
+}
+
 /// One exercise's working sets in one completed session.
 nonisolated struct SessionResult: Hashable, Sendable {
     var date: Date
@@ -23,6 +48,8 @@ nonisolated struct SessionResult: Hashable, Sendable {
     var readinessWasLow: Bool = false
     /// The session these sets came from, so a history row can open it for correction.
     var sessionID: UUID? = nil
+    /// Why the lift was missed, when the lifter said.
+    var missReason: MissReason? = nil
 }
 
 nonisolated enum Verdict: String, Sendable {
@@ -126,6 +153,9 @@ nonisolated struct SessionAnnotation: Hashable, Sendable {
     /// Consecutive non-progressed sessions up to and including this one.
     var stallStreak: Int
     var deload: DeloadMark?
+    var missReason: MissReason? = nil
+    /// A miss with a reason that excuses it: shown as missed, counted as nothing.
+    var isExcused: Bool = false
 }
 
 /// Double progression with autoregulated deloads. Rules in DESIGN.md §2.3–2.4.
@@ -144,6 +174,13 @@ nonisolated enum ProgressionEngine {
         if working.contains(where: { $0.reps < config.repRangeLow }) { return .failed }
         let allAtTop = working.allSatisfy { $0.reps >= config.repRangeHigh && ($0.rpe ?? 10) <= config.rpeCap }
         return allAtTop ? .progressed : .held
+    }
+
+    /// A missed session whose reason says it was not about the load. It is skipped by the stall
+    /// count and the prescription, like a session with no working sets. A reason left on a
+    /// session that was later corrected to Held or Progressed excuses nothing.
+    static func isExcused(_ session: SessionResult, config: ExerciseConfig) -> Bool {
+        session.missReason?.excusesTheMiss == true && verdict(for: session.sets, config: config) == .failed
     }
 
     static func topWorkingWeight(_ sets: [LoggedSet]) -> Double? {
@@ -193,7 +230,7 @@ nonisolated enum ProgressionEngine {
         var countingFails = true
         for index in stride(from: history.count - 1, through: 0, by: -1) {
             let verdict = verdict(for: history[index].sets, config: config)
-            if verdict == .incomplete { continue }
+            if verdict == .incomplete || isExcused(history[index], config: config) { continue }
             if verdict == .progressed { break }
             if verdict == .failed && countingFails { consecutiveFails += 1 } else { countingFails = false }
             streak += 1
@@ -216,6 +253,11 @@ nonisolated enum ProgressionEngine {
         var result: [SessionAnnotation] = []
         for (index, session) in history.enumerated() {
             let verdict = verdict(for: session.sets, config: config)
+            if isExcused(session, config: config) {
+                result.append(SessionAnnotation(date: session.date, verdict: verdict, stallStreak: streak, deload: nil,
+                                                missReason: session.missReason, isExcused: true))
+                continue
+            }
             var deload: DeloadMark?
             if index > 0,
                let current = topWorkingWeight(session.sets),
@@ -230,7 +272,8 @@ nonisolated enum ProgressionEngine {
             case .incomplete: break
             case .held, .failed: streak += 1
             }
-            result.append(SessionAnnotation(date: session.date, verdict: verdict, stallStreak: streak, deload: deload))
+            result.append(SessionAnnotation(date: session.date, verdict: verdict, stallStreak: streak, deload: deload,
+                                            missReason: session.missReason))
         }
         return result
     }
@@ -241,6 +284,23 @@ nonisolated enum ProgressionEngine {
                              readiness: Readiness? = nil,
                              weeklySetsForPrimaryMuscle: Double? = nil,
                              formatWeight: (Double) -> String = { "\(format($0)) kg" }) -> Prescription {
+        // Excused misses are left out altogether; the lift carries on from the session before.
+        let excusedLast = history.last.flatMap { isExcused($0, config: config) ? $0.missReason : nil }
+        var result = prescriptionCounting(history: history.filter { !isExcused($0, config: config) }, config: config, muscles: muscles,
+                                          readiness: readiness, weeklySetsForPrimaryMuscle: weeklySetsForPrimaryMuscle, formatWeight: formatWeight)
+        if let excusedLast {
+            result.reason = "Last session's miss (\(excusedLast.label.lowercased())) doesn't count. " + result.reason
+        }
+        return result
+    }
+
+    /// The rules on a history with excused misses already removed.
+    private static func prescriptionCounting(history: [SessionResult],
+                                             config: ExerciseConfig,
+                                             muscles: [MuscleWeight],
+                                             readiness: Readiness?,
+                                             weeklySetsForPrimaryMuscle: Double?,
+                                             formatWeight: (Double) -> String) -> Prescription {
         let low = config.repRangeLow, high = config.repRangeHigh
         var result = Prescription(weight: 0, repRangeLow: low, repRangeHigh: high, setCount: config.setCount, reason: "", rpeCap: config.rpeCap)
 
@@ -283,8 +343,8 @@ nonisolated enum ProgressionEngine {
         }
         let pulledBack = runStart != nil
         let baseline = runStart.map {
-            prescription(history: Array(history[..<$0]), config: config, muscles: muscles,
-                         weeklySetsForPrimaryMuscle: weeklySetsForPrimaryMuscle, formatWeight: formatWeight).weight
+            prescriptionCounting(history: Array(history[..<$0]), config: config, muscles: muscles, readiness: nil,
+                                 weeklySetsForPrimaryMuscle: weeklySetsForPrimaryMuscle, formatWeight: formatWeight).weight
         } ?? lastWeight
 
         let stalled = stall.streak >= stallThreshold || stall.consecutiveFails >= consecutiveFailThreshold
