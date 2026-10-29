@@ -381,7 +381,11 @@ correction fixes everything downstream.
 
 ## 6. Tech
 
-- SwiftUI + SwiftData, iOS 26 target, iCloud sync via CloudKit.
+- SwiftUI + SwiftData, iOS 26 target. Local store only, no iCloud sync: one lifter, one phone,
+  and the CSV export is the backup and the way to move phones. CloudKit-backed SwiftData would
+  forbid the unique exercise name and per-day weigh-in and readiness entries and turn each into
+  a merge rule across devices; decided against on 2026-10-28, to be revisited if the app ever
+  goes to iPad or watch.
 - Swift Charts for all trend views.
 - HealthKit, each opt-in in Settings: read HRV and resting heart rate, sleep and bodyweight;
   write finished workouts as strength training (deleted with the session).
