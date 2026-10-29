@@ -15,7 +15,9 @@ nonisolated enum SetStepRule {
         guard let current, current > 0 else {
             return direction == .up ? snap(start, to: step) : nil
         }
-        let gridded = current / step
+        // Pound weights are stored in kilograms and come back as 154.99999999999997 or
+        // 75.00000000000001; floor and ceil on the raw quotient would then step nowhere.
+        let gridded = ((current / step) * 1_000_000).rounded() / 1_000_000
         let next: Double
         switch direction {
         case .up: next = (gridded.rounded(.down) + 1) * step

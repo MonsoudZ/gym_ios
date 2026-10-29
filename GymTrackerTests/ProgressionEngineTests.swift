@@ -153,6 +153,47 @@ final class ProgressionEngineTests: XCTestCase {
         XCTAssertEqual(p.weight, 72.5)
     }
 
+    func testReadinessCutIsNotADeload() {
+        // 97.5 × 0.95 = 92.625 → 92.5 on the 2.5 kg grid: a 5.1% drop, past the 5% deload
+        // boundary. The low-readiness session must still count toward the stall.
+        let history = [
+            session(97.5, reps: [7, 7, 7], daysAgo: 8),
+            session(92.5, reps: [7, 7, 7], daysAgo: 4, lowReadiness: true),
+            session(92.5, reps: [7, 7, 7], daysAgo: 1),
+        ]
+        let p = ProgressionEngine.prescription(history: history, config: config, weeklySetsForPrimaryMuscle: 12)
+        XCTAssertEqual(p.stallStreak, 3)
+        XCTAssertEqual(p.stallAction, .deload)
+        let notes = ProgressionEngine.annotate(history: history, config: config)
+        XCTAssertEqual(notes.map { $0.deload != nil }, [false, false, false])
+        XCTAssertEqual(notes.map(\.stallStreak), [1, 2, 3])
+    }
+
+    func testDeloadOnALowReadinessDayStillResetsTheStreak() {
+        // Deload 100 → 90, then the 5% cut → 85.5 → 85: lighter than the cut alone (95).
+        let history = [
+            session(100, reps: [7, 7, 7], daysAgo: 11), session(100, reps: [7, 7, 7], daysAgo: 8), session(100, reps: [7, 7, 7], daysAgo: 5),
+            session(85, reps: [8, 8, 7], daysAgo: 1, lowReadiness: true),
+        ]
+        XCTAssertEqual(ProgressionEngine.stallStreak(history: history, config: config).streak, 1)
+        let notes = ProgressionEngine.annotate(history: history, config: config)
+        XCTAssertEqual(notes.last?.deload?.fromWeight, 100)
+        XCTAssertEqual(notes.last?.deload?.stalledSessionsBefore, 3)
+    }
+
+    func testWarmupOnlyLastSessionKeepsTheLiftsHistory() {
+        // Warm-ups done, lift skipped: the session has no working sets and no verdict. The
+        // prescription comes from the last real session, not "no history yet".
+        let warmupsOnly = SessionResult(date: Calendar.current.date(byAdding: .day, value: -1, to: .now)!,
+                                        sets: [LoggedSet(weight: 60, reps: 8, isWarmup: true), LoggedSet(weight: 90, reps: 5, isWarmup: true)])
+        let history = [session(120, reps: [8, 8, 8], daysAgo: 4), warmupsOnly]
+        let p = ProgressionEngine.prescription(history: history, config: config)
+        XCTAssertFalse(p.needsStartingWeight)
+        XCTAssertEqual(p.weight, 122.5)
+        XCTAssertEqual(p.lastVerdict, .progressed)
+        XCTAssertEqual(p.previousWeight, 120)
+    }
+
     func testProgressBreaksTheStreak() {
         let history = [session(80, reps: [7, 7, 7], daysAgo: 7), session(80, reps: [7, 7, 7], daysAgo: 4), session(80, reps: [8, 8, 8], daysAgo: 1)]
         let p = ProgressionEngine.prescription(history: history, config: config)

@@ -25,6 +25,32 @@ final class HeartRateRuleTests: XCTestCase {
     private let steadyHRV: [Double] = [50, 52, 48, 51, 49, 53, 47]   // mean 50, SD ≈ 2.16
     private let steadyRHR: [Double] = [58, 60, 57, 59, 61, 58, 60]   // mean ≈ 59, SD ≈ 1.41
 
+    // MARK: Morning averages
+
+    private func at(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ value: Double) -> DatedValue {
+        DatedValue(date: calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!, value: value)
+    }
+
+    func testMorningAverageTakesSamplesBeforeNoonOnly() {
+        let samples = [at(2026, 10, 18, 6, 50), at(2026, 10, 18, 9, 54), at(2026, 10, 18, 15, 30), at(2026, 10, 17, 14, 40)]
+        let result = HeartRateRule.morningAverages(samples, endHour: 12, calendar: calendar)
+        XCTAssertEqual(result.count, 1, "a day with only afternoon samples has no reading")
+        XCTAssertEqual(result[calendar.startOfDay(for: at(2026, 10, 18, 0, 0).date)], 52)
+    }
+
+    func testMorningAveragesSurviveADSTChange() {
+        // Denver springs forward on 8 Mar 2026 and falls back on 1 Nov 2026. Readings on the
+        // transition day and the days after must key to their own calendar day.
+        let spring = [at(2026, 3, 7, 7, 48), at(2026, 3, 8, 7, 50), at(2026, 3, 9, 7, 52), at(2026, 3, 9, 13, 99)]
+        let springResult = HeartRateRule.morningAverages(spring, endHour: 12, calendar: calendar)
+        XCTAssertEqual(springResult.count, 3)
+        XCTAssertEqual(springResult[calendar.startOfDay(for: at(2026, 3, 9, 0, 0).date)], 52)
+        let fall = [at(2026, 10, 31, 7, 48), at(2026, 11, 1, 7, 50), at(2026, 11, 2, 7, 52)]
+        let fallResult = HeartRateRule.morningAverages(fall, endHour: 12, calendar: calendar)
+        XCTAssertEqual(fallResult.count, 3)
+        XCTAssertEqual(fallResult[calendar.startOfDay(for: at(2026, 11, 2, 0, 0).date)], 52)
+    }
+
     // MARK: Baseline
 
     func testBaselineIsMeanAndSampleSD() {

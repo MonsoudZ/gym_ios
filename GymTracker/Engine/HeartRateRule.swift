@@ -62,6 +62,20 @@ nonisolated enum HeartRateRule {
         return HeartBaseline(mean: mean, standardDeviation: variance.squareRoot(), days: values.count)
     }
 
+    /// Each day's reading: the average of its samples taken before `endHour` in `calendar`'s
+    /// day, keyed by the start of that day. Days with no morning sample are absent. Working in
+    /// calendar days, not fixed hours from an anchor, keeps the morning the morning across a
+    /// DST change.
+    static func morningAverages(_ samples: [DatedValue], endHour: Int, calendar: Calendar) -> [Date: Double] {
+        var sums: [Date: (total: Double, count: Int)] = [:]
+        for sample in samples where calendar.component(.hour, from: sample.date) < endHour {
+            let day = calendar.startOfDay(for: sample.date)
+            sums[day, default: (0, 0)].total += sample.value
+            sums[day, default: (0, 0)].count += 1
+        }
+        return sums.mapValues { $0.total / Double($0.count) }
+    }
+
     static func isBelow(_ value: Double, baseline: HeartBaseline) -> Bool {
         value < baseline.mean - thresholdSDs * baseline.standardDeviation
     }

@@ -164,6 +164,19 @@ nonisolated enum ProgressionEngine {
         return rounded
     }
 
+    /// Whether `current` is a deload from `previous`: a drop past the deload boundary. On a day
+    /// readiness was low the engine itself cut the load by 5%, and that cut can round below
+    /// the boundary (97.5 kg → 92.5 kg is a 5.1% drop), so there the boundary is the cut
+    /// load: only a session lighter than the readiness cut would have made it is a deload.
+    static func isDeloadBoundary(current: Double, previous: Double, readinessWasLow: Bool, increment: Double) -> Bool {
+        var boundary = previous * deloadBoundaryFactor
+        if readinessWasLow {
+            let cut = round(previous * Readiness.loadMultiplier, toIncrement: increment)
+            if cut < previous { boundary = cut }
+        }
+        return current < boundary - 1e-9
+    }
+
     /// Working sets that reached the top of the range but carry no RPE. The verdict counts a
     /// missing RPE as 10, so these are the sets that silently block progression.
     static func topSetsMissingRPE(_ sets: [LoggedSet], config: ExerciseConfig) -> Int {
@@ -188,7 +201,8 @@ nonisolated enum ProgressionEngine {
             if index > 0,
                let current = topWorkingWeight(history[index].sets),
                let previous = topWorkingWeight(history[index - 1].sets),
-               current < previous * deloadBoundaryFactor {
+               isDeloadBoundary(current: current, previous: previous,
+                                readinessWasLow: history[index].readinessWasLow, increment: config.increment) {
                 break   // this session was a deload; the counter restarts here
             }
         }
@@ -206,7 +220,8 @@ nonisolated enum ProgressionEngine {
             if index > 0,
                let current = topWorkingWeight(session.sets),
                let previous = topWorkingWeight(history[index - 1].sets),
-               current < previous * deloadBoundaryFactor {
+               isDeloadBoundary(current: current, previous: previous,
+                                readinessWasLow: session.readinessWasLow, increment: config.increment) {
                 deload = DeloadMark(fromWeight: previous, toWeight: current, stalledSessionsBefore: streak)
                 streak = 0
             }
@@ -229,7 +244,10 @@ nonisolated enum ProgressionEngine {
         let low = config.repRangeLow, high = config.repRangeHigh
         var result = Prescription(weight: 0, repRangeLow: low, repRangeHigh: high, setCount: config.setCount, reason: "", rpeCap: config.rpeCap)
 
-        guard let last = history.last, let lastWeight = topWorkingWeight(last.sets) else {
+        // The last session with a working set. A session holding only warm-ups (the lift was
+        // skipped after warming up) has no verdict and must not read as "no history".
+        guard let last = history.last(where: { topWorkingWeight($0.sets) != nil }),
+              let lastWeight = topWorkingWeight(last.sets) else {
             if let start = config.startingWeight, start > 0 {
                 result.weight = start
                 result.reason = "First session. Start at \(formatWeight(start)) and aim for RPE 7."

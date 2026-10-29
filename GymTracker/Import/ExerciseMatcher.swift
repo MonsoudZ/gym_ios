@@ -12,14 +12,38 @@ nonisolated enum ExerciseMatcher {
         if let hit = aliases[normalized] { return hit }
         if let hit = byNormalizedLibraryName[normalized] { return hit }
         // Drop trailing equipment words one at a time: "lat pulldown cable wide grip" → "lat pulldown".
+        // Dropping an implement is only safe when the library lift is done with it: "squat
+        // bodyweight" must not land on Back Squat, a barbell lift, so that is a guess and the
+        // lifter picks (DESIGN.md §4).
         var tokens = normalized.split(separator: " ").map(String.init)
+        var droppedImplements: [String] = []
         while let last = tokens.last, equipmentWords.contains(last) || qualifierWords.contains(last) {
             tokens.removeLast()
+            if implementWords.contains(last) { droppedImplements.append(last) }
             let shorter = tokens.joined(separator: " ")
-            if let hit = aliases[shorter] ?? byNormalizedLibraryName[shorter] { return hit }
+            if let hit = aliases[shorter] ?? byNormalizedLibraryName[shorter] {
+                return droppedImplements.allSatisfy { implements(for: hit).contains($0) } ? hit : nil
+            }
         }
         return nil
     }
+
+    /// The implements a library lift is known under: every word of its own name and of its
+    /// aliases that names one. Back Squat → {barbell}; Goblet Squat → {dumbbell, kettlebell}.
+    private static func implements(for libraryName: String) -> Set<String> {
+        implementsByLibraryName[libraryName] ?? []
+    }
+
+    private static let implementsByLibraryName: [String: Set<String>] = {
+        var result: [String: Set<String>] = [:]
+        let names = aliases.map { ($0.key, $0.value) } + ExerciseLibrary.all.map { (normalize($0.name), $0.name) }
+        for (key, target) in names {
+            for word in key.split(separator: " ").map(String.init) where implementWords.contains(word) {
+                result[target, default: []].insert(word)
+            }
+        }
+        return result
+    }()
 
     /// Lowercased words only, with the other apps' spellings folded onto the library's.
     static func normalize(_ name: String) -> String {
@@ -54,6 +78,11 @@ nonisolated enum ExerciseMatcher {
     private static let equipmentWords: Set<String> = [
         "barbell", "dumbbell", "cable", "machine", "smith", "kettlebell", "band", "bands", "plates", "plate",
         "bar", "ez", "trap", "hex", "rope", "straight", "v", "assisted", "weighted", "bodyweight", "bench",
+    ]
+
+    /// Equipment words that change which lift it is, as opposed to attachments and grips.
+    private static let implementWords: Set<String> = [
+        "barbell", "dumbbell", "cable", "machine", "smith", "kettlebell", "band", "bands", "bodyweight", "assisted", "weighted", "rope",
     ]
 
     private static let qualifierWords: Set<String> = [

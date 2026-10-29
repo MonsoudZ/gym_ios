@@ -16,6 +16,9 @@ struct NutritionView: View {
     /// The day the food list and the weigh-in field refer to. Today by default; the arrows
     /// step back so a forgotten dinner or weigh-in can be put on the day it belongs to.
     @State private var shownDay = Calendar.current.startOfDay(for: .now)
+    /// The day the tab last reset to today. The List reappears whenever the weigh-in list pops,
+    /// and resetting on every appearance undid the day a tapped weigh-in had just chosen.
+    @State private var lastResetDay = Calendar.current.startOfDay(for: .now)
 
     private var settings: UserSettings? { settingsList.first }
     private var calendar: Calendar { Calendar.current }
@@ -52,7 +55,13 @@ struct NutritionView: View {
                 WeighInList(shownDay: $shownDay, weightText: $weightText)
             }
             // After midnight the remembered day would be "yesterday"; the tab reopens on today.
-            .onAppear { if shownDay != today { shownDay = today; weightText = "" } }
+            // Only once per day: a pop back from the weigh-in list is not a new day.
+            .onAppear {
+                guard lastResetDay != today else { return }
+                lastResetDay = today
+                shownDay = today
+                weightText = ""
+            }
         }
     }
 

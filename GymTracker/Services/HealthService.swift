@@ -83,19 +83,14 @@ enum HealthService {
                                       calendar: Calendar) async -> [Date: Double] {
         let predicate = HKSamplePredicate.quantitySample(
             type: type, predicate: HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate))
-        // Buckets of `morningEndHour` hours anchored at midnight: the first bucket of each day is
-        // the morning, the second is dropped.
-        let descriptor = HKStatisticsCollectionQueryDescriptor(
-            predicate: predicate, options: .discreteAverage, anchorDate: start, intervalComponents: DateComponents(hour: morningEndHour))
-        guard let collection = try? await descriptor.result(for: store) else { return [:] }
-        var result: [Date: Double] = [:]
-        collection.enumerateStatistics(from: start, to: end) { stats, _ in
-            let day = calendar.startOfDay(for: stats.startDate)
-            // The morning bucket is the one starting at midnight (within an hour, for DST days).
-            guard abs(stats.startDate.timeIntervalSince(day)) < 3600, let value = stats.averageQuantity()?.doubleValue(for: unit) else { return }
-            result[day] = value
-        }
-        return result
+        // The samples themselves, averaged per calendar morning by `HeartRateRule`. A statistics
+        // collection with 12-hour buckets was used before; its buckets are fixed hours from the
+        // anchor, so after a DST change every "midnight" bucket started at 01:00 or 23:00 and
+        // the morning filter dropped a week of readings.
+        let descriptor = HKSampleQueryDescriptor(predicates: [predicate], sortDescriptors: [SortDescriptor(\.startDate)])
+        guard let samples = try? await descriptor.result(for: store) else { return [:] }
+        let values = samples.map { DatedValue(date: $0.startDate, value: $0.quantity.doubleValue(for: unit)) }
+        return HeartRateRule.morningAverages(values, endHour: morningEndHour, calendar: calendar)
     }
 
     /// Asleep stretches overlapping last night's window. In-bed and awake samples are dropped.

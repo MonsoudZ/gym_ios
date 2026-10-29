@@ -185,6 +185,19 @@ final class WorkoutImportTests: XCTestCase {
         XCTAssertNil(ExerciseMatcher.libraryName(for: ""))
     }
 
+    func testADifferentImplementIsNotGuessedOntoTheBarbellLift() {
+        // Stripping the equipment word would land these on barbell or machine lifts and put
+        // 0 kg bodyweight squats into Back Squat's history. They go orange for the lifter to pick.
+        for name in ["Squat (Bodyweight)", "Squat (Dumbbell)", "Deadlift (Dumbbell)", "Deadlift (Band)",
+                     "Hip Thrust (Bodyweight)", "Chest Press (Band)", "Pushdown (Cable - Rope)"] {
+            XCTAssertNil(ExerciseMatcher.libraryName(for: name), name)
+        }
+        // The lift's own implement and plain grips still strip.
+        XCTAssertEqual(ExerciseMatcher.libraryName(for: "Lat Pulldown - Wide Grip (Cable)"), "Lat Pulldown")
+        XCTAssertEqual(ExerciseMatcher.libraryName(for: "Back Squat (Barbell) - Low Bar"), "Back Squat")
+        XCTAssertEqual(ExerciseMatcher.libraryName(for: "Goblet Squat (Kettlebell)"), "Goblet Squat")
+    }
+
     // MARK: Applying to the store
 
     private var container: ModelContainer?

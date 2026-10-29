@@ -14,6 +14,9 @@ struct WorkoutImportView: View {
     @State private var fileText: String?
     @State private var fileName = ""
     @State private var unit: WeightUnit = .lb
+    /// The unit is seeded from Settings once. The Form reappears every time a mapping picker
+    /// pops, and re-seeding there threw away the unit the lifter had just chosen.
+    @State private var unitSeeded = false
     @State private var parsed: WorkoutImport?
     @State private var mapping: [String: WorkoutImportService.Target] = [:]
     @State private var alreadyImported = 0
@@ -37,7 +40,11 @@ struct WorkoutImportView: View {
         }
         .navigationTitle("Import workouts")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { unit = metric ? .kg : .lb }
+        .onAppear {
+            guard !unitSeeded else { return }
+            unitSeeded = true
+            unit = metric ? .kg : .lb
+        }
         .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.commaSeparatedText, .plainText, .text, .data]) { result in
             switch result {
             case .success(let url): load(url)
