@@ -66,21 +66,23 @@ enum HealthService {
     nonisolated static let morningEndHour = 12
 
     /// Morning averages of both heart metrics over the last `lookbackDays` days, today included.
-    /// Days with neither reading are left out.
-    static func dailySamples(now: Date = .now, calendar: Calendar = .current) async -> [DailyHeartSample] {
+    /// Days with neither reading are left out. Nil when Health could not be read.
+    static func dailySamples(now: Date = .now, calendar: Calendar = .current) async -> [DailyHeartSample]? {
         guard isAvailable else { return [] }
         let today = calendar.startOfDay(for: now)
         guard let start = calendar.date(byAdding: .day, value: -(lookbackDays - 1), to: today),
               let end = calendar.date(byAdding: .day, value: 1, to: today) else { return [] }
-        let hrv = await dailyAverages(of: hrvType, unit: hrvUnit, from: start, to: end, calendar: calendar)
-        let resting = await dailyAverages(of: restingHeartRateType, unit: beatsPerMinute, from: start, to: end, calendar: calendar)
+        guard let hrv = await dailyAverages(of: hrvType, unit: hrvUnit, from: start, to: end, calendar: calendar),
+              let resting = await dailyAverages(of: restingHeartRateType, unit: beatsPerMinute, from: start, to: end, calendar: calendar)
+        else { return nil }
         return Set(hrv.keys).union(resting.keys).sorted().map {
             DailyHeartSample(date: $0, hrvMs: hrv[$0], restingHeartRate: resting[$0])
         }
     }
 
+    /// Nil when the query failed or was cancelled, which is not the same as "no samples".
     private static func dailyAverages(of type: HKQuantityType, unit: HKUnit, from start: Date, to end: Date,
-                                      calendar: Calendar) async -> [Date: Double] {
+                                      calendar: Calendar) async -> [Date: Double]? {
         let predicate = HKSamplePredicate.quantitySample(
             type: type, predicate: HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate))
         // The samples themselves, averaged per calendar morning by `HeartRateRule`. A statistics
@@ -88,34 +90,36 @@ enum HealthService {
         // anchor, so after a DST change every "midnight" bucket started at 01:00 or 23:00 and
         // the morning filter dropped a week of readings.
         let descriptor = HKSampleQueryDescriptor(predicates: [predicate], sortDescriptors: [SortDescriptor(\.startDate)])
-        guard let samples = try? await descriptor.result(for: store) else { return [:] }
+        guard let samples = try? await descriptor.result(for: store) else { return nil }
         let values = samples.map { DatedValue(date: $0.startDate, value: $0.quantity.doubleValue(for: unit)) }
         return HeartRateRule.morningAverages(values, endHour: morningEndHour, calendar: calendar)
     }
 
     /// Asleep stretches overlapping last night's window. In-bed and awake samples are dropped.
-    static func sleepSamples(now: Date = .now, calendar: Calendar = .current) async -> [SleepInterval] {
+    /// Nil when Health could not be read.
+    static func sleepSamples(now: Date = .now, calendar: Calendar = .current) async -> [SleepInterval]? {
         guard isAvailable else { return [] }
         let (start, end) = SleepRule.window(now: now, calendar: calendar)
         let predicate = HKSamplePredicate.categorySample(
             type: sleepType, predicate: HKQuery.predicateForSamples(withStart: start, end: end, options: []))
         let descriptor = HKSampleQueryDescriptor(predicates: [predicate], sortDescriptors: [SortDescriptor(\.startDate)])
-        guard let samples = try? await descriptor.result(for: store) else { return [] }
+        guard let samples = try? await descriptor.result(for: store) else { return nil }
         let asleep = HKCategoryValueSleepAnalysis.allAsleepValues.map(\.rawValue)
         return samples
             .filter { asleep.contains($0.value) }
             .map { SleepInterval(start: $0.startDate, end: $0.endDate) }
     }
 
-    /// Every bodyweight sample in the last `bodyweightLookbackDays` days, oldest first.
-    static func weightSamples(now: Date = .now, calendar: Calendar = .current) async -> [HealthWeightSample] {
+    /// Every bodyweight sample in the last `bodyweightLookbackDays` days, oldest first. Nil when
+    /// Health could not be read.
+    static func weightSamples(now: Date = .now, calendar: Calendar = .current) async -> [HealthWeightSample]? {
         guard isAvailable else { return [] }
         let today = calendar.startOfDay(for: now)
         guard let start = calendar.date(byAdding: .day, value: -bodyweightLookbackDays, to: today) else { return [] }
         let predicate = HKSamplePredicate.quantitySample(
             type: bodyMassType, predicate: HKQuery.predicateForSamples(withStart: start, end: nil, options: []))
         let descriptor = HKSampleQueryDescriptor(predicates: [predicate], sortDescriptors: [SortDescriptor(\.startDate)])
-        guard let samples = try? await descriptor.result(for: store) else { return [] }
+        guard let samples = try? await descriptor.result(for: store) else { return nil }
         return samples.map { HealthWeightSample(date: $0.startDate, kg: $0.quantity.doubleValue(for: .gramUnit(with: .kilo))) }
     }
 
@@ -131,40 +135,34 @@ enum HealthService {
     }
 
     private static func refreshReadiness(context: ModelContext, settings: UserSettings?, now: Date) async {
-        var heart: HeartReadiness?
+        // A feature that is off reads as `.value(nil)`: it clears what Health had filled in. A
+        // read that failed is `.unavailable` and leaves the stored reading alone.
+        var heart: HealthRead<HeartReadiness> = .value(nil)
         if settings?.heartReadinessEnabled == true {
-            heart = HeartRateRule.evaluate(samples: await dailySamples(now: now), today: now)
+            heart = await dailySamples(now: now).map { .value(HeartRateRule.evaluate(samples: $0, today: now)) } ?? .unavailable
         }
-        var sleep: Double?
+        var sleep: HealthRead<Double> = .value(nil)
         if settings?.sleepFromHealthEnabled == true {
-            sleep = SleepRule.hoursAsleep(await sleepSamples(now: now), now: now)
+            sleep = await sleepSamples(now: now).map { .value(SleepRule.hoursAsleep($0, now: now)) } ?? .unavailable
         }
         let entries = (try? context.fetch(FetchDescriptor<ReadinessEntry>())) ?? []
         if let entry = ReadinessEntry.entry(for: now, in: entries) {
-            var changed = entry.applyHealthSleep(sleep)
-            if entry.heart != heart {
-                entry.heart = heart
-                changed = true
-            }
-            guard changed else { return }
-        } else if heart != nil || sleep != nil {
-            let entry = ReadinessEntry(date: now)
-            entry.heart = heart
-            entry.applyHealthSleep(sleep)
-            context.insert(entry)
+            guard entry.applyHealth(heart: heart, sleep: sleep) else { return }
         } else {
-            return
+            let entry = ReadinessEntry(date: now)
+            guard entry.applyHealth(heart: heart, sleep: sleep) else { return }   // nothing to store
+            context.insert(entry)
         }
         context.saveOrLog()
     }
 
     private static func refreshBodyweight(context: ModelContext, settings: UserSettings?, now: Date) async {
-        guard settings?.bodyweightFromHealthEnabled == true else { return }
-        let morning = BodyweightImport.morningWeights(await weightSamples(now: now))
+        guard let settings, settings.bodyweightFromHealthEnabled, let samples = await weightSamples(now: now) else { return }
+        let morning = BodyweightImport.morningWeights(samples)
         guard !morning.isEmpty else { return }
         let entries = (try? context.fetch(FetchDescriptor<BodyweightEntry>())) ?? []
         let existing = entries.map { ExistingWeight(date: $0.date, kg: $0.kg, fromHealth: $0.fromHealth) }
-        let changes = BodyweightImport.changes(morning: morning, existing: existing)
+        let changes = BodyweightImport.changes(morning: morning, existing: existing, dismissed: Set(settings.dismissedHealthWeighInDays))
         guard !changes.isEmpty else { return }
         for change in changes {
             switch change.kind {

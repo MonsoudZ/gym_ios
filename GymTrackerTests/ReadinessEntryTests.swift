@@ -28,6 +28,34 @@ final class ReadinessEntryTests: XCTestCase {
     }
 
     @MainActor
+    func testAFailedHealthReadLeavesTheStoredReadingAlone() {
+        let entry = ReadinessEntry(date: .now)
+        let reading = HeartReadiness(hrvMs: 48, restingHeartRate: 60,
+                                     hrvBaseline: HeartBaseline(mean: 50, standardDeviation: 2, days: 7),
+                                     restingHeartRateBaseline: HeartBaseline(mean: 58, standardDeviation: 1.5, days: 7))
+        XCTAssertTrue(entry.applyHealth(heart: .value(reading), sleep: .value(7.2)))
+        XCTAssertEqual(entry.heart, reading)
+        XCTAssertEqual(entry.sleepHours, 7.2)
+
+        // The app was backgrounded mid-query: nothing changes, nothing is erased.
+        XCTAssertFalse(entry.applyHealth(heart: .unavailable, sleep: .unavailable))
+        XCTAssertEqual(entry.heart, reading)
+        XCTAssertEqual(entry.sleepHours, 7.2)
+        XCTAssertTrue(entry.sleepFromHealth)
+
+        // One read fails while the other answers: only the answered one moves.
+        XCTAssertTrue(entry.applyHealth(heart: .unavailable, sleep: .value(6.5)))
+        XCTAssertEqual(entry.heart, reading)
+        XCTAssertEqual(entry.sleepHours, 6.5)
+
+        // Health answers with nothing (feature off, or no sample today): that does clear.
+        XCTAssertTrue(entry.applyHealth(heart: .value(nil), sleep: .value(nil)))
+        XCTAssertNil(entry.heart)
+        XCTAssertNil(entry.sleepHours)
+        XCTAssertFalse(entry.applyHealth(heart: .value(nil), sleep: .value(nil)), "already clear")
+    }
+
+    @MainActor
     func testHealthSleepFillsTheDayButIsNotACheckInAndTypingWins() {
         let entry = ReadinessEntry(date: .now)
         XCTAssertTrue(entry.applyHealthSleep(7.26))

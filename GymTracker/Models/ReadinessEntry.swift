@@ -1,6 +1,16 @@
 import Foundation
 import SwiftData
 
+/// What one refresh learned from Health about one feature.
+nonisolated enum HealthRead<Value: Hashable & Sendable>: Hashable, Sendable {
+    /// Health answered. Nil means it has nothing for today, or the feature is off; either way
+    /// whatever Health filled in before is cleared.
+    case value(Value?)
+    /// Health could not be read: an error, or the app left the foreground mid-query. The
+    /// stored reading is left alone, so a transient failure never erases this morning's numbers.
+    case unavailable
+}
+
 /// One day's readiness check-in (DESIGN.md §2.4), kept so it survives leaving the Today tab
 /// and is asked for only once. The session started that day copies it.
 @Model
@@ -90,6 +100,19 @@ final class ReadinessEntry {
         sleepHours = newValue
         sleepFromHealth = newValue != nil
         return true
+    }
+
+    /// Writes a refresh's Health readings onto the day. A reading that could not be fetched
+    /// leaves what is stored. Returns whether anything changed.
+    @discardableResult
+    func applyHealth(heart heartRead: HealthRead<HeartReadiness>, sleep sleepRead: HealthRead<Double>) -> Bool {
+        var changed = false
+        if case .value(let hours) = sleepRead, applyHealthSleep(hours) { changed = true }
+        if case .value(let reading) = heartRead, heart != reading {
+            heart = reading
+            changed = true
+        }
+        return changed
     }
 
     /// The entry for the day containing `date`, if any.

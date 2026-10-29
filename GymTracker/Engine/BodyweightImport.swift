@@ -39,10 +39,14 @@ nonisolated enum BodyweightImport {
         return earliest.mapValues(\.kg)
     }
 
-    static func changes(morning: [Date: Double], existing: [ExistingWeight]) -> [Change] {
+    /// `dismissed` are days whose Health-filled entry the lifter deleted; they are not filled
+    /// again. A typed entry on such a day is still never touched.
+    static func changes(morning: [Date: Double], existing: [ExistingWeight], dismissed: Set<Date> = []) -> [Change] {
         let byDay = Dictionary(existing.map { ($0.date, $0) }, uniquingKeysWith: { first, _ in first })
         return morning.compactMap { day, kg in
-            guard let entry = byDay[day] else { return Change(date: day, kg: kg, kind: .insert) }
+            guard let entry = byDay[day] else {
+                return dismissed.contains(day) ? nil : Change(date: day, kg: kg, kind: .insert)
+            }
             guard entry.fromHealth, abs(entry.kg - kg) > 0.001 else { return nil }
             return Change(date: day, kg: kg, kind: .update)
         }

@@ -39,6 +39,18 @@ final class BodyweightImportTests: XCTestCase {
         ])
     }
 
+    func testADismissedDayIsNotFilledAgainButATypedOneIsStillLeftAlone() {
+        // The lifter deleted Health's weigh-in for the 18th; a refresh must not put it back.
+        let morning = [day(17): 81.0, day(18): 80.2, day(19): 80.0]
+        let existing = [ExistingWeight(date: day(19), kg: 80.3, fromHealth: false)]
+        let changes = BodyweightImport.changes(morning: morning, existing: existing, dismissed: [day(18), day(19)])
+        XCTAssertEqual(changes, [BodyweightImport.Change(date: day(17), kg: 81.0, kind: .insert)])
+        // Health-filled days that were not dismissed still update.
+        let healthDay = [ExistingWeight(date: day(17), kg: 81.5, fromHealth: true)]
+        XCTAssertEqual(BodyweightImport.changes(morning: morning, existing: healthDay, dismissed: [day(18), day(19)]),
+                       [BodyweightImport.Change(date: day(17), kg: 81.0, kind: .update)])
+    }
+
     func testNothingToDoIsEmpty() {
         XCTAssertTrue(BodyweightImport.changes(morning: [:], existing: []).isEmpty)
         XCTAssertTrue(BodyweightImport.changes(morning: [day(1): 80], existing: [ExistingWeight(date: day(1), kg: 80, fromHealth: true)]).isEmpty)

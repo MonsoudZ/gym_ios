@@ -321,12 +321,19 @@ struct WeighInList: View {
                     .foregroundStyle(.primary)
                 }
                 .onDelete { offsets in
-                    for index in offsets { context.delete(weights[index]) }
+                    for index in offsets {
+                        let entry = weights[index]
+                        // Health would fill the day straight back in; remember that it was dismissed.
+                        if entry.fromHealth, let settings = settingsList.first, !settings.dismissedHealthWeighInDays.contains(entry.date) {
+                            settings.dismissedHealthWeighInDays.append(entry.date)
+                        }
+                        context.delete(entry)
+                    }
                     context.saveOrLog()
                     LogReminders.refresh(context: context)
                 }
             } footer: {
-                Text("Tap a weigh-in to correct it, swipe to delete it. The trend and expenditure estimate update.")
+                Text("Tap a weigh-in to correct it, swipe to delete it. The trend and expenditure estimate update. A deleted Health weigh-in is not filled in again.")
             }
         }
         .navigationTitle("Weigh-ins")

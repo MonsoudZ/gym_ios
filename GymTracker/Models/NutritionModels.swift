@@ -84,6 +84,9 @@ final class UserSettings {
     var sleepFromHealthEnabled: Bool = false
     /// Fills days with no typed weigh-in from Health's bodyweight samples (BodyweightImport).
     var bodyweightFromHealthEnabled: Bool = false
+    /// Days (start of day) whose Health-filled weigh-in the lifter deleted. Health does not fill
+    /// them again, or the delete would be undone on the next refresh.
+    var dismissedHealthWeighInDays: [Date] = []
     /// Saves each finished workout to Health as strength training.
     var saveWorkoutsToHealthEnabled: Bool = false
 
