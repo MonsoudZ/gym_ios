@@ -147,11 +147,13 @@ private struct SettingsForm: View {
 
             Section {
                 if settings.usesMetric {
-                    Stepper("Height: \(Units.number(settings.heightCm, maxFraction: 0)) cm", value: $settings.heightCm, in: 120...230, step: 1)
+                    ProfileNumberField("Height", value: $settings.heightCm, unit: "cm", range: 120...230)
                 } else {
                     HeightPickerRow(heightCm: $settings.heightCm)
                 }
-                Stepper("Age: \(settings.ageYears)", value: $settings.ageYears, in: 14...100)
+                ProfileNumberField("Age", value: Binding(get: { Double(settings.ageYears) },
+                                                         set: { settings.ageYears = Int($0.rounded()) }),
+                                   unit: "years", range: 14...100)
                 Picker("Sex (for the formula)", selection: $settings.isMale) {
                     Text("Male").tag(true)
                     Text("Female").tag(false)
@@ -163,17 +165,17 @@ private struct SettingsForm: View {
                     Text("High").tag(1.9)
                 }
                 if settings.usesMetric {
-                    Stepper("Starting weight: \(Units.number(settings.assumedWeightKg)) kg", value: $settings.assumedWeightKg, in: 35...250, step: 0.5)
+                    ProfileNumberField("Starting weight", value: $settings.assumedWeightKg, unit: "kg", range: 35...250, fraction: 1)
                 } else {
-                    Stepper("Starting weight: \(Units.number(Units.lb(fromKg: settings.assumedWeightKg), maxFraction: 0)) lb",
-                            value: Binding(get: { Units.lb(fromKg: settings.assumedWeightKg).rounded() },
-                                           set: { settings.assumedWeightKg = Units.kg(fromLb: $0) }),
-                            in: 80...550, step: 1)
+                    ProfileNumberField("Starting weight",
+                                       value: Binding(get: { Units.lb(fromKg: settings.assumedWeightKg) },
+                                                      set: { settings.assumedWeightKg = Units.kg(fromLb: $0) }),
+                                       unit: "lb", range: 80...550)
                 }
             } header: {
                 Text("Profile")
             } footer: {
-                Text("Used only for the provisional calorie estimate before the app has measured your expenditure.")
+                Text("Used only for the provisional calorie estimate before the app has measured your expenditure. Tap a number to type it.")
             }
 
             Section {
@@ -242,6 +244,62 @@ private struct SettingsForm: View {
         .confirmationDialog("Delete all workouts, weights and food?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Delete everything", role: .destructive) { Seeder.resetAll(context: context) }
         }
+    }
+}
+
+/// A number typed in place with its unit beside it, clamped to `range` when editing ends.
+/// Steppers made a height or a bodyweight a long press away from the default; here it is the
+/// number and Done.
+private struct ProfileNumberField: View {
+    var label: String
+    @Binding var value: Double
+    var unit: String
+    var range: ClosedRange<Double>
+    var fraction = 0
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    init(_ label: String, value: Binding<Double>, unit: String, range: ClosedRange<Double>, fraction: Int = 0) {
+        self.label = label
+        _value = value
+        self.unit = unit
+        self.range = range
+        self.fraction = fraction
+    }
+
+    var body: some View {
+        HStack {
+            Text(label)
+            Spacer()
+            TextField(label, text: $text)
+                .keyboardType(fraction > 0 ? .decimalPad : .numberPad)
+                .multilineTextAlignment(.trailing)
+                .font(.body.monospacedDigit())
+                .frame(width: 84)
+                .focused($focused)
+                .accessibilityLabel("\(label) in \(unit)")
+            Text(unit).foregroundStyle(.secondary)
+        }
+        .onAppear { text = formatted(value) }
+        .onChange(of: value) { _, newValue in if !focused { text = formatted(newValue) } }
+        .onChange(of: focused) { _, isFocused in if !isFocused { commit() } }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                if focused {
+                    Spacer()
+                    Button("Done") { focused = false }
+                }
+            }
+        }
+    }
+
+    private func formatted(_ number: Double) -> String { Units.number(number, maxFraction: fraction) }
+
+    private func commit() {
+        if let typed = Double(text.replacingOccurrences(of: ",", with: ".")) {
+            value = min(max(typed, range.lowerBound), range.upperBound)
+        }
+        text = formatted(value)
     }
 }
 
