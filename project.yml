@@ -81,6 +81,19 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.monsoudzanaty.GymTrackerTests
         GENERATE_INFOPLIST_FILE: "YES"
         SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
+  GymTrackerUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: GymTrackerUITests
+    dependencies:
+      - target: GymTracker
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.monsoudzanaty.GymTrackerUITests
+        GENERATE_INFOPLIST_FILE: "YES"
+        SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
+        TEST_TARGET_NAME: GymTracker
 schemes:
   GymTracker:
     build:
@@ -88,8 +101,9 @@ schemes:
         GymTracker: all
         GymTrackerWidgets: all
         GymTrackerTests: [test]
+        GymTrackerUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
-      targets: [GymTrackerTests]
+      targets: [GymTrackerTests, GymTrackerUITests]
