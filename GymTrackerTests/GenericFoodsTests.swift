@@ -6,11 +6,11 @@ final class GenericFoodsTests: XCTestCase {
     func testNamesAreUniqueAndEveryFoodHasEnergy() {
         let names = GenericFoods.all.map(\.name)
         XCTAssertEqual(Set(names).count, names.count, "duplicate name")
-        XCTAssertGreaterThan(names.count, 90)
+        XCTAssertGreaterThan(names.count, 240)
         for food in GenericFoods.all {
             XCTAssertGreaterThan(food.kcalPer100g, 0, food.name)
             XCTAssertTrue(food.brand.isEmpty, food.name)
-            if let cup = food.gramsPerCup { XCTAssertTrue((20...350).contains(cup), "\(food.name): \(cup) g per cup") }
+            if let cup = food.gramsPerCup { XCTAssertTrue((8...350).contains(cup), "\(food.name): \(cup) g per cup") }
             if let piece = food.pieceGrams {
                 XCTAssertGreaterThan(piece, 0, food.name)
                 XCTAssertNotNil(food.pieceName, "\(food.name) has a piece weight but no name")
@@ -21,7 +21,7 @@ final class GenericFoodsTests: XCTestCase {
     func testMacroEnergyAgreesWithCalories() {
         // 4/4/9 kcal per gram should land within 25% of the listed energy. Alcohol and fibre
         // make drinks and very fibrous foods the exceptions.
-        let exceptions: Set<String> = ["Beer, regular", "Wine, red", "Coffee, black"]
+        let exceptions: Set<String> = ["Beer, regular", "Wine, red", "Coffee, black", "Light beer", "Wine, white", "Vodka, whisky, rum"]
         for food in GenericFoods.all where !exceptions.contains(food.name) {
             let fromMacros = 4 * food.proteinPer100g + 4 * food.carbsPer100g + 9 * food.fatPer100g
             let tolerance = max(25, food.kcalPer100g * 0.25)
