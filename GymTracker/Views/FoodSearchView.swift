@@ -35,6 +35,8 @@ struct FoodSearchView: View {
         return savedFoods.filter { $0.name.lowercased().contains(q) || $0.brand.lowercased().contains(q) }
     }
 
+    private var genericMatches: [FoodDraft] { GenericFoods.search(query.trimmingCharacters(in: .whitespaces)) }
+
     private var mealMatches: [SavedMeal] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         if q.isEmpty { return Array(savedMeals.prefix(10)) }
@@ -73,6 +75,18 @@ struct FoodSearchView: View {
                         }
                     }
                 }
+                if !genericMatches.isEmpty {
+                    Section {
+                        ForEach(genericMatches) { draft in
+                            Button { selected = draft } label: { FoodRow(draft: draft) }
+                                .foregroundStyle(.primary)
+                        }
+                    } header: {
+                        Text("Common foods")
+                    } footer: {
+                        Text("Typical values per 100 g (USDA), with cups and pieces for measuring. A scanned label wins for a specific product.")
+                    }
+                }
                 Section("Open Food Facts") {
                     if isSearching {
                         HStack { ProgressView(); Text("Searching…").foregroundStyle(.secondary) }
@@ -82,7 +96,7 @@ struct FoodSearchView: View {
                         EmptyState("Search by name", systemImage: "magnifyingglass",
                                    description: "Type a food name above to search the Open Food Facts database.")
                     } else if results.isEmpty {
-                        StatusRow(text: "No results for “\(query)”. Try fewer words.", systemImage: "magnifyingglass",
+                        StatusRow(text: "No products for “\(query)”. Try fewer words.", systemImage: "magnifyingglass",
                                   action: "Add manually") { showManual = true }
                     }
                     ForEach(results) { draft in
@@ -201,6 +215,11 @@ struct FoodRow: View {
 }
 
 /// Pick an amount and log it. Upserts the food into "Your foods".
+///
+/// The amount is a quantity of a unit: grams or ounces always; cups, tablespoons, teaspoons,
+/// millilitres and fluid ounces when the food says what a cup weighs; pieces ("2 large eggs")
+/// and label servings when it carries those. The quantity takes fractions as typed: ½, 1/2,
+/// 3/4, 1 1/2.
 struct LogFoodView: View {
     var draft: FoodDraft
     var logDate: Date = .now
@@ -209,8 +228,14 @@ struct LogFoodView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var savedFoods: [FoodItem]
-    @State private var grams: Double = 100
+    @State private var quantityText = "1"
+    @State private var unit: PortionUnit = .gram
+    @FocusState private var quantityFocused: Bool
 
+    private var units: [PortionUnit] { Portion.units(for: draft) }
+    private var quantity: Double { Portion.parse(quantityText) ?? 0 }
+    private var portion: Portion { Portion(quantity: quantity, unit: unit) }
+    private var grams: Double { portion.grams(for: draft) ?? 0 }
     private var macros: Macros { draft.macros(forGrams: grams) }
 
     var body: some View {
@@ -221,20 +246,37 @@ struct LogFoodView: View {
                     HStack {
                         Text("Amount")
                         Spacer()
-                        TextField("amount", value: $grams, format: .number.precision(.fractionLength(0...1)))
-                            .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 90)
+                        TextField("1", text: $quantityText)
+                            .keyboardType(.numbersAndPunctuation)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 70)
                             .font(.body.monospacedDigit())
-                        Text("g").foregroundStyle(.secondary)
-                    }
-                    HStack {
-                        if let serving = draft.servingGrams, serving > 0 {
-                            Button("1 serving\(draft.servingDescription.map { " (\($0))" } ?? "")") { grams = serving }
-                            Button("2 servings") { grams = serving * 2 }
+                            .focused($quantityFocused)
+                            .accessibilityLabel("Quantity")
+                        Picker("Unit", selection: $unit) {
+                            ForEach(units) { unit in Text(unitName(unit)).tag(unit) }
                         }
-                        Button("100 g") { grams = 100 }
-                        Button("1 oz") { grams = 28.35 }
+                        .labelsHidden()
+                        .accessibilityLabel("Unit")
                     }
-                    .buttonStyle(.bordered).font(.caption)
+                    if unit != .gram {
+                        LabeledContent("Weight") {
+                            Text(grams > 0 ? "\(Units.number(grams, maxFraction: 0)) g" : "—").monospacedDigit().foregroundStyle(.secondary)
+                        }
+                    }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(quickPortions, id: \.self) { quick in
+                                Button(quick.label(for: draft)) { set(quick) }
+                            }
+                        }
+                        .buttonStyle(.bordered).font(.caption)
+                    }
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 0))
+                } footer: {
+                    if draft.gramsPerCup == nil, draft.pieceGrams == nil, draft.servingGrams == nil {
+                        Text("This product gives no serving or cup weight, so it is logged by weight.")
+                    }
                 }
                 Section("This amount") {
                     LabeledContent("Calories") { Text("\(Units.number(macros.kcal, maxFraction: 0)) kcal").monospacedDigit() }
@@ -249,15 +291,56 @@ struct LogFoodView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Back") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Log") { log() }.disabled(grams <= 0) }
+                ToolbarItemGroup(placement: .keyboard) {
+                    if quantityFocused {
+                        Spacer()
+                        Button("Done") { quantityFocused = false }
+                    }
+                }
             }
-            .onAppear { if let serving = draft.servingGrams, serving > 0 { grams = serving } }
+            .onAppear(perform: startingPortion)
         }
+    }
+
+    /// "cup", "large egg", "serving (30 g)".
+    private func unitName(_ unit: PortionUnit) -> String {
+        switch unit {
+        case .piece: draft.pieceName ?? "piece"
+        case .serving: "serving" + (draft.servingDescription.map { " (\($0))" } ?? "")
+        default: unit.label
+        }
+    }
+
+    /// The first unit the food is usually measured in, at one of it.
+    private func startingPortion() {
+        if draft.servingGrams ?? 0 > 0 { set(Portion(quantity: 1, unit: .serving)) }
+        else if draft.pieceGrams ?? 0 > 0 { set(Portion(quantity: 1, unit: .piece)) }
+        else if draft.gramsPerCup ?? 0 > 0 { set(Portion(quantity: 1, unit: .cup)) }
+        else { set(Portion(quantity: 100, unit: .gram)) }
+    }
+
+    private var quickPortions: [Portion] {
+        var quick: [Portion] = []
+        if draft.servingGrams ?? 0 > 0 { quick += [Portion(quantity: 1, unit: .serving), Portion(quantity: 2, unit: .serving)] }
+        if draft.pieceGrams ?? 0 > 0 { quick += [Portion(quantity: 1, unit: .piece), Portion(quantity: 2, unit: .piece)] }
+        if draft.gramsPerCup ?? 0 > 0 {
+            quick += [Portion(quantity: 0.25, unit: .cup), Portion(quantity: 0.5, unit: .cup), Portion(quantity: 0.75, unit: .cup),
+                      Portion(quantity: 1, unit: .cup), Portion(quantity: 1, unit: .tablespoon)]
+        }
+        quick += [Portion(quantity: 100, unit: .gram), Portion(quantity: 1, unit: .ounce)]
+        return quick
+    }
+
+    private func set(_ portion: Portion) {
+        unit = portion.unit
+        quantityText = Portion.format(portion.quantity)
     }
 
     private func log() {
         let m = macros
         context.insert(IntakeEntry(date: IntakeEntry.timestamp(for: logDate), name: draft.displayName, kcal: m.kcal,
-                                   protein: m.protein, carbs: m.carbs, fat: m.fat, fibre: m.fibre, grams: grams))
+                                   protein: m.protein, carbs: m.carbs, fat: m.fat, fibre: m.fibre, grams: grams,
+                                   portionLabel: unit == .gram ? nil : portion.label(for: draft)))
         let existing = savedFoods.first { item in
             if let code = draft.barcode, item.barcode == code { return true }
             return item.name == draft.name && item.brand == draft.brand

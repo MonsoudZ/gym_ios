@@ -15,6 +15,10 @@ final class FoodItem {
     var fibrePer100g: Double
     var servingGrams: Double?
     var servingDescription: String?
+    /// Household measures (Portion): what a cup of it weighs, and what one piece weighs and is called.
+    var gramsPerCup: Double?
+    var pieceGrams: Double?
+    var pieceName: String?
     var lastUsed: Date
     var useCount: Int
 
@@ -29,6 +33,9 @@ final class FoodItem {
         fibrePer100g = draft.fibrePer100g
         servingGrams = draft.servingGrams
         servingDescription = draft.servingDescription
+        gramsPerCup = draft.gramsPerCup
+        pieceGrams = draft.pieceGrams
+        pieceName = draft.pieceName
         lastUsed = .now
         useCount = 0
     }
@@ -36,7 +43,8 @@ final class FoodItem {
     var draft: FoodDraft {
         FoodDraft(name: name, brand: brand, barcode: barcode, kcalPer100g: kcalPer100g, proteinPer100g: proteinPer100g,
                   carbsPer100g: carbsPer100g, fatPer100g: fatPer100g, fibrePer100g: fibrePer100g,
-                  servingGrams: servingGrams, servingDescription: servingDescription)
+                  servingGrams: servingGrams, servingDescription: servingDescription,
+                  gramsPerCup: gramsPerCup, pieceGrams: pieceGrams, pieceName: pieceName)
     }
 
     func update(from draft: FoodDraft) {
@@ -50,6 +58,9 @@ final class FoodItem {
         fibrePer100g = draft.fibrePer100g
         servingGrams = draft.servingGrams ?? servingGrams
         servingDescription = draft.servingDescription ?? servingDescription
+        gramsPerCup = draft.gramsPerCup ?? gramsPerCup
+        pieceGrams = draft.pieceGrams ?? pieceGrams
+        pieceName = draft.pieceName ?? pieceName
     }
 }
 
@@ -65,6 +76,10 @@ nonisolated struct FoodDraft: Hashable, Sendable, Identifiable {
     var fibrePer100g: Double = 0
     var servingGrams: Double? = nil
     var servingDescription: String? = nil
+    /// Household measures: grams in a cup (volume units), grams in one piece and its name.
+    var gramsPerCup: Double? = nil
+    var pieceGrams: Double? = nil
+    var pieceName: String? = nil
 
     var id: String { barcode ?? "\(brand)|\(name)" }
 

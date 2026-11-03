@@ -421,9 +421,14 @@ correction fixes everything downstream.
    exports import from Settings (§4), as do this app's own weigh-in and food exports (§6).
    MacroFactor's export still does not.
 4. ~~Is a food database needed in v1, or are saved meals plus manual entry enough to start?~~
-   Answered by building all three: manual entry, saved meals, and Open Food Facts by name search
-   or barcode scan (free, open, no account), with recently used foods kept locally. No bundled
-   database.
+   Answered by building all of it: manual entry, saved meals, Open Food Facts by name search or
+   barcode scan (free, open, no account), recently used foods kept locally, and a bundled list of
+   about a hundred everyday foods (`GenericFoods`: oats, milk, eggs, chicken, rice, fruit,
+   vegetables, condiments) with USDA-typical values per 100 g and what a cup or a piece weighs.
+   Amounts are logged in household measures (`Portion`): grams and ounces always; cups,
+   tablespoons, teaspoons, millilitres and fluid ounces where the food has a cup weight;
+   pieces ("2 large eggs") and label servings where it has those. Quantities take fractions as
+   typed (½, 1/2, 3/4, 1 1/2), and the logged line shows the measure beside the grams.
 
 ---
 

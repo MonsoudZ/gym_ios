@@ -253,7 +253,7 @@ struct NutritionView: View {
                 HStack {
                     VStack(alignment: .leading) {
                         Text(entry.name)
-                        Text("\(entry.grams.map { "\(Units.number($0, maxFraction: 0)) g · " } ?? "")P \(Units.number(entry.protein, maxFraction: 0)) · C \(Units.number(entry.carbs, maxFraction: 0)) · F \(Units.number(entry.fat, maxFraction: 0))")
+                        Text("\(entry.portionLabel.map { "\($0) · " } ?? "")\(entry.grams.map { "\(Units.number($0, maxFraction: 0)) g · " } ?? "")P \(Units.number(entry.protein, maxFraction: 0)) · C \(Units.number(entry.carbs, maxFraction: 0)) · F \(Units.number(entry.fat, maxFraction: 0))")
                             .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     }
                     Spacer()

@@ -26,6 +26,8 @@ final class IntakeEntry {
     var fat: Double
     var fibre: Double
     var grams: Double?
+    /// How the amount was given ("½ cup", "2 large eggs"), beside the grams it came to.
+    var portionLabel: String?
 
     /// The timestamp for a food logged against `day`: now when that is today, else noon on
     /// that day, so a backdated entry sorts into its day whatever the time zone does.
@@ -34,7 +36,8 @@ final class IntakeEntry {
         return calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day) ?? day
     }
 
-    init(date: Date = .now, name: String, kcal: Double, protein: Double = 0, carbs: Double = 0, fat: Double = 0, fibre: Double = 0, grams: Double? = nil) {
+    init(date: Date = .now, name: String, kcal: Double, protein: Double = 0, carbs: Double = 0, fat: Double = 0, fibre: Double = 0,
+         grams: Double? = nil, portionLabel: String? = nil) {
         self.date = date
         self.name = name
         self.kcal = kcal
@@ -43,6 +46,7 @@ final class IntakeEntry {
         self.fat = fat
         self.fibre = fibre
         self.grams = grams
+        self.portionLabel = portionLabel
     }
 }
 
