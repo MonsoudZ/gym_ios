@@ -428,7 +428,10 @@ correction fixes everything downstream.
    Amounts are logged in household measures (`Portion`): grams and ounces always; cups,
    tablespoons, teaspoons, millilitres and fluid ounces where the food has a cup weight;
    pieces ("2 large eggs") and label servings where it has those. Quantities take fractions as
-   typed (½, 1/2, 3/4, 1 1/2), and the logged line shows the measure beside the grams.
+   typed (½, 1/2, 3/4, 1 1/2), and the logged line shows the measure beside the grams. "Create a
+   food" takes a label's nutrition per serving or per 100 g, with a cup weight and a piece weight
+   and name, and keeps it under Your foods, where it can be edited or deleted; "Quick entry" logs
+   one amount by its totals and keeps nothing.
 
 ---
 

@@ -17,6 +17,8 @@ struct FoodSearchView: View {
     @State private var selected: FoodDraft?
     @State private var showScanner = false
     @State private var showManual = false
+    @State private var creating = false
+    @State private var editingFood: FoodItem?
     @State private var barcode: BarcodeLookup?
     @State private var searchAttempt = 0
 
@@ -68,11 +70,22 @@ struct FoodSearchView: View {
                     barcodeRow
                 }
                 if !savedMatches.isEmpty {
-                    Section("Your foods") {
+                    Section {
                         ForEach(savedMatches, id: \.persistentModelID) { item in
                             Button { selected = item.draft } label: { FoodRow(draft: item.draft) }
                                 .foregroundStyle(.primary)
+                                .swipeActions(edge: .trailing) {
+                                    Button("Delete", systemImage: "trash", role: .destructive) {
+                                        context.delete(item)
+                                        context.saveOrLog()
+                                    }
+                                    Button("Edit", systemImage: "pencil") { editingFood = item }.tint(.blue)
+                                }
                         }
+                    } header: {
+                        Text("Your foods")
+                    } footer: {
+                        Text("Swipe a food to edit its nutrition and measures, or delete it. Foods already logged keep their numbers.")
                     }
                 }
                 if !genericMatches.isEmpty {
@@ -97,7 +110,7 @@ struct FoodSearchView: View {
                                    description: "Type a food name above to search the Open Food Facts database.")
                     } else if results.isEmpty {
                         StatusRow(text: "No products for “\(query)”. Try fewer words.", systemImage: "magnifyingglass",
-                                  action: "Add manually") { showManual = true }
+                                  action: "Create it") { creating = true }
                     }
                     ForEach(results) { draft in
                         Button { selected = draft } label: { FoodRow(draft: draft) }
@@ -105,9 +118,10 @@ struct FoodSearchView: View {
                     }
                 }
                 Section {
-                    Button("Add manually", systemImage: "square.and.pencil") { showManual = true }
+                    Button("Create a food", systemImage: "plus.circle") { creating = true }
+                    Button("Quick entry, just the totals", systemImage: "square.and.pencil") { showManual = true }
                 } footer: {
-                    Text("For foods that are not in the database, or when you know the macros.")
+                    Text("Create a food from its label, with a serving, cup or piece weight, and it stays under Your foods. Quick entry logs one amount and keeps nothing.")
                 }
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search foods")
@@ -130,6 +144,12 @@ struct FoodSearchView: View {
                 }
             }
             .sheet(isPresented: $showManual) { AddIntakeView(logDate: logDate) }
+            .sheet(isPresented: $creating) {
+                NewFoodView(editing: nil) { draft in selected = draft }
+            }
+            .sheet(item: $editingFood) { item in
+                NewFoodView(editing: item) { _ in }
+            }
         }
     }
 
@@ -139,7 +159,7 @@ struct FoodSearchView: View {
             HStack { ProgressView(); Text("Looking up \(code)…").foregroundStyle(.secondary) }
         case .notFound(let code):
             StatusRow(text: "\(code) is not in Open Food Facts yet.", systemImage: "questionmark.circle",
-                      action: "Add manually") { showManual = true }
+                      action: "Create it") { creating = true }
         case .failed(let code):
             StatusRow(text: "Lookup failed for \(code). Check your connection.", systemImage: "wifi.exclamationmark",
                       action: "Retry") { Task { await lookup(barcode: code) } }

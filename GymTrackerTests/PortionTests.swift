@@ -61,6 +61,28 @@ final class PortionTests: XCTestCase {
         XCTAssertEqual(Portion.units(for: labelled).first, .serving)
     }
 
+    func testAFoodEnteredPerServingIsStoredPer100gAndLogsInItsMeasures() {
+        // A protein powder label: 1 scoop (31 g) = 120 kcal, 24 P, 3 C, 1.5 F.
+        let powder = FoodDraft.from(name: "Whey", brand: "Gym", basisGrams: 31, kcal: 120, protein: 24, carbs: 3, fat: 1.5, fibre: 0,
+                                    servingGrams: 31, servingDescription: "1 scoop")
+        XCTAssertEqual(powder.kcalPer100g, 387.1, accuracy: 0.1)
+        XCTAssertEqual(powder.proteinPer100g, 77.4, accuracy: 0.1)
+        let scoop = powder.macros(forGrams: Portion(quantity: 1, unit: .serving).grams(for: powder)!)
+        XCTAssertEqual(scoop.kcal, 120, accuracy: 0.01, "one serving gives the label back")
+        XCTAssertEqual(scoop.protein, 24, accuracy: 0.01)
+        XCTAssertEqual(Portion.units(for: powder).first, .serving)
+
+        // A loaf: per 100 g, with a slice weight and nothing else.
+        let bread = FoodDraft.from(name: "Rye", basisGrams: 100, kcal: 259, protein: 8.5, carbs: 48, fat: 3.3, fibre: 5.8,
+                                   pieceGrams: 32, pieceName: "slice")
+        XCTAssertEqual(bread.kcalPer100g, 259)
+        XCTAssertEqual(bread.macros(forGrams: Portion(quantity: 2, unit: .piece).grams(for: bread)!).kcal, 165.76, accuracy: 0.01)
+        XCTAssertEqual(Portion(quantity: 2, unit: .piece).label(for: bread), "2 slices")
+        XCTAssertNil(Portion(quantity: 1, unit: .cup).grams(for: bread))
+        XCTAssertEqual(FoodDraft.from(name: "x", basisGrams: 0, kcal: 100, protein: 0, carbs: 0, fat: 0, fibre: 0).kcalPer100g, 0,
+                       "no basis weight: nothing to scale, nothing stored")
+    }
+
     func testLabelsReadAsPeopleSayThem() {
         XCTAssertEqual(Portion(quantity: 0.5, unit: .cup).label(for: oats), "½ cup")
         XCTAssertEqual(Portion(quantity: 2, unit: .piece).label(for: egg), "2 large eggs")

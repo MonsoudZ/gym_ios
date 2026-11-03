@@ -85,6 +85,18 @@ nonisolated struct FoodDraft: Hashable, Sendable, Identifiable {
 
     var displayName: String { brand.isEmpty ? name : "\(name) · \(brand)" }
 
+    /// A food described the way a label or a recipe gives it: nutrition for `basisGrams` of it
+    /// (a serving, or 100 g), scaled to the per-100 g the app stores.
+    static func from(name: String, brand: String = "", basisGrams: Double, kcal: Double, protein: Double, carbs: Double, fat: Double, fibre: Double,
+                     servingGrams: Double? = nil, servingDescription: String? = nil,
+                     gramsPerCup: Double? = nil, pieceGrams: Double? = nil, pieceName: String? = nil) -> FoodDraft {
+        let scale = basisGrams > 0 ? 100 / basisGrams : 0
+        return FoodDraft(name: name, brand: brand, kcalPer100g: kcal * scale, proteinPer100g: protein * scale,
+                         carbsPer100g: carbs * scale, fatPer100g: fat * scale, fibrePer100g: fibre * scale,
+                         servingGrams: servingGrams, servingDescription: servingDescription,
+                         gramsPerCup: gramsPerCup, pieceGrams: pieceGrams, pieceName: pieceName)
+    }
+
     func macros(forGrams grams: Double) -> Macros {
         let f = grams / 100
         return Macros(kcal: kcalPer100g * f, protein: proteinPer100g * f, fat: fatPer100g * f,
